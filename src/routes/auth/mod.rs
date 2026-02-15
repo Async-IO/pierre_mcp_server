@@ -501,7 +501,7 @@ impl AuthService {
         let user = self
             .data
             .database()
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))?;
@@ -763,7 +763,7 @@ impl OAuthService {
     ) -> AppResult<(User, String)> {
         let database = self.data.database();
         let user = database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| {
@@ -1817,7 +1817,7 @@ impl AuthRoutes {
         // Look up user details from database
         let user = resources
             .database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to fetch user: {e}")))?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
@@ -1974,7 +1974,7 @@ impl AuthRoutes {
         // Fetch user to get current password hash
         let user = resources
             .database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 
@@ -2131,7 +2131,7 @@ impl AuthRoutes {
         let connected_providers = i64::try_from(oauth_tokens.len()).unwrap_or(0);
 
         // Get user creation date to calculate days active
-        let user = resources.database.get_user(user_id).await?;
+        let user = resources.database.get_user_global(user_id).await?;
         let days_active = match user {
             Some(u) => {
                 let now = chrono::Utc::now();
@@ -2558,7 +2558,7 @@ impl AuthRoutes {
         database: &Database,
         user_id: uuid::Uuid,
     ) -> Result<User, AppError> {
-        match database.get_user(user_id).await {
+        match database.get_user_global(user_id).await {
             Ok(Some(user)) => Ok(user),
             Ok(None) => {
                 error!("User {} not found in database", user_id);

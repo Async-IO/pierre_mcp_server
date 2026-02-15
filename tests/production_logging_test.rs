@@ -254,7 +254,7 @@ async fn test_database_operation_instrumentation() -> Result<(), Box<dyn Error>>
     assert_eq!(created_id, user.id, "Created user ID should match");
 
     // Test instrumented get_user operation
-    let retrieved_user = database.get_user(user.id).await?;
+    let retrieved_user = database.get_user_global(user.id).await?;
 
     assert!(retrieved_user.is_some(), "User should be retrievable");
     if let Some(user) = retrieved_user {

@@ -698,11 +698,15 @@ fn analyze_distance_goal_feasibility(
 
     // Convert activity count to f64 with safe conversion helper
     let activity_count = safe_usize_to_f64(activities.len());
-    let avg_distance_per_activity = recent_total_distance / activity_count;
+    let avg_distance_per_activity = if activity_count > 0.0 {
+        recent_total_distance / activity_count
+    } else {
+        0.0
+    };
 
     // Calculate actual training history from activity dates
     let training_weeks =
-        calculate_training_history_weeks(activities, MIN_ACTIVITIES_FOR_TRAINING_HISTORY);
+        calculate_training_history_weeks(activities, MIN_ACTIVITIES_FOR_TRAINING_HISTORY).max(1.0);
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let estimated_activities = (activity_count / training_weeks) * weeks_in_timeframe;
 
@@ -765,7 +769,7 @@ fn analyze_duration_goal_feasibility(
     };
 
     let training_weeks =
-        calculate_training_history_weeks(activities, MIN_ACTIVITIES_FOR_TRAINING_HISTORY);
+        calculate_training_history_weeks(activities, MIN_ACTIVITIES_FOR_TRAINING_HISTORY).max(1.0);
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let projected_hours = (current_hours / training_weeks) * weeks_in_timeframe;
 
@@ -792,7 +796,7 @@ fn analyze_frequency_goal_feasibility(
     // Convert activity count to f64 with safe conversion helper
     let current_count = safe_usize_to_f64(activities.len());
     let training_weeks =
-        calculate_training_history_weeks(activities, MIN_ACTIVITIES_FOR_TRAINING_HISTORY);
+        calculate_training_history_weeks(activities, MIN_ACTIVITIES_FOR_TRAINING_HISTORY).max(1.0);
     let weeks_in_timeframe = f64::from(timeframe_days) / 7.0;
     let current_weekly_frequency = current_count / training_weeks;
     let projected_count = current_weekly_frequency * weeks_in_timeframe;
@@ -865,7 +869,7 @@ fn infer_fitness_level(activities: &[Activity]) -> FitnessLevel {
     }
 
     let training_weeks =
-        calculate_training_history_weeks(activities, MIN_ACTIVITIES_FOR_TRAINING_HISTORY);
+        calculate_training_history_weeks(activities, MIN_ACTIVITIES_FOR_TRAINING_HISTORY).max(1.0);
     // Cast is safe: activity count (usize) far below f64 precision limit (2^53)
     #[allow(clippy::cast_precision_loss)] // Safe: realistic activity counts
     let activities_per_week = activities.len() as f64 / training_weeks;

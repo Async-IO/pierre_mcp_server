@@ -21,3 +21,9 @@ pub mod recipes;
 
 /// Tenant administration: slug validation, tenant creation, user provisioning
 pub mod tenant_admin;
+
+/// Chat orchestration: conversation creation, message persistence, LLM dispatch coordination
+pub mod chat_orchestration;
+
+/// Social insights: friend-request validation, user search enrichment, insight adaptation
+pub mod social_insights;

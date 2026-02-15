@@ -371,27 +371,30 @@ pub async fn stats(database: &Database, token_id: Option<String>, days: u32) -> 
 
         let successful = usage_history.iter().filter(|u| u.success).count();
         let failed = usage_history.len() - successful;
+        let total = usage_history.len();
 
-        println!("Successful: {} ({}%)", successful, {
-            #[allow(
-                clippy::cast_precision_loss,
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss
-            )]
-            {
-                (successful as f64 / usage_history.len() as f64 * 100.0).round() as u32
-            }
-        });
-        println!("Failed: {} ({}%)", failed, {
-            #[allow(
-                clippy::cast_precision_loss,
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss
-            )]
-            {
-                (failed as f64 / usage_history.len() as f64 * 100.0).round() as u32
-            }
-        });
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
+        let success_pct = if total > 0 {
+            (successful as f64 / total as f64 * 100.0).round() as u32
+        } else {
+            0
+        };
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
+        let fail_pct = if total > 0 {
+            (failed as f64 / total as f64 * 100.0).round() as u32
+        } else {
+            0
+        };
+        println!("Successful: {successful} ({success_pct}%)");
+        println!("Failed: {failed} ({fail_pct}%)");
 
         // Group by action
         let mut action_counts = HashMap::new();

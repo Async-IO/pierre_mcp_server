@@ -430,11 +430,20 @@ impl DatabaseProvider for Database {
     /// - Data deserialization fails
     /// - Database connection issues
     #[tracing::instrument(skip(self), fields(db_operation = "get_user"))]
-    async fn get_user(&self, user_id: uuid::Uuid) -> AppResult<Option<User>> {
+    async fn get_user(&self, user_id: uuid::Uuid, tenant_id: TenantId) -> AppResult<Option<User>> {
         match self {
-            Self::SQLite(db) => db.get_user(user_id).await,
+            Self::SQLite(db) => db.get_user(user_id, tenant_id).await,
             #[cfg(feature = "postgresql")]
-            Self::PostgreSQL(db) => db.get_user(user_id).await,
+            Self::PostgreSQL(db) => db.get_user(user_id, tenant_id).await,
+        }
+    }
+
+    #[tracing::instrument(skip(self), fields(db_operation = "get_user_global"))]
+    async fn get_user_global(&self, user_id: uuid::Uuid) -> AppResult<Option<User>> {
+        match self {
+            Self::SQLite(db) => db.get_user_global(user_id).await,
+            #[cfg(feature = "postgresql")]
+            Self::PostgreSQL(db) => db.get_user_global(user_id).await,
         }
     }
 

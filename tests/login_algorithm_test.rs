@@ -19,7 +19,7 @@
 mod common;
 mod helpers;
 
-use chrono::Utc;
+use chrono::{Timelike, Utc};
 use helpers::axum_test::AxumTestRequest;
 use pierre_mcp_server::{
     config::environment::{
@@ -441,11 +441,12 @@ async fn test_login_updates_last_active_timestamp() {
         .await
         .expect("Failed to create user");
 
-    // Record time before login
-    let before_login = Utc::now();
+    // Record time before login, truncated to seconds since SQLite stores
+    // timestamps with second-level precision
+    let before_login = Utc::now().with_nanosecond(0).expect("valid timestamp");
 
-    // Small delay to ensure timestamp difference
-    sleep(Duration::from_millis(10)).await;
+    // Delay to ensure timestamp difference across second boundary
+    sleep(Duration::from_millis(1100)).await;
 
     let routes = setup.routes();
 
@@ -465,7 +466,7 @@ async fn test_login_updates_last_active_timestamp() {
     // Fetch the updated user from database
     let updated_user = setup
         .database
-        .get_user(user.id)
+        .get_user_global(user.id)
         .await
         .expect("Failed to get user")
         .expect("User should exist");
@@ -493,7 +494,7 @@ async fn test_failed_login_does_not_update_timestamp() {
     // Get initial last_active
     let initial_user = setup
         .database
-        .get_user(user.id)
+        .get_user_global(user.id)
         .await
         .expect("Failed to get user")
         .expect("User should exist");
@@ -521,7 +522,7 @@ async fn test_failed_login_does_not_update_timestamp() {
     // Verify timestamp was NOT updated
     let after_user = setup
         .database
-        .get_user(user.id)
+        .get_user_global(user.id)
         .await
         .expect("Failed to get user")
         .expect("User should exist");

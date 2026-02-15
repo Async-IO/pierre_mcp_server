@@ -138,7 +138,8 @@ impl<S: IntelligenceStrategy> AdvancedGoalEngine<S> {
         let days_elapsed =
             f64::from(i32::try_from((Utc::now() - goal.created_at).num_days()).unwrap_or(0));
         let days_total =
-            f64::from(i32::try_from((goal.target_date - goal.created_at).num_days()).unwrap_or(1));
+            f64::from(i32::try_from((goal.target_date - goal.created_at).num_days()).unwrap_or(1))
+                .max(1.0);
         let time_progress = days_elapsed / days_total;
 
         if progress.progress_percentage

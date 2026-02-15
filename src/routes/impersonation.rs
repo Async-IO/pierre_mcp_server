@@ -139,7 +139,8 @@ impl ImpersonationRoutes {
         // Get user and check for super_admin role
         let user = resources
             .database
-            .get_user(auth.user_id)
+            // SECURITY: Global lookup — impersonation is super-admin, cross-tenant by design
+            .get_user_global(auth.user_id)
             .await
             .map_err(|e| AppError::internal(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User not found"))?;
@@ -175,7 +176,8 @@ impl ImpersonationRoutes {
         // Get target user
         let target_user = resources
             .database
-            .get_user(target_user_id)
+            // SECURITY: Global lookup — impersonation target can be in any tenant
+            .get_user_global(target_user_id)
             .await
             .map_err(|e| AppError::internal(format!("Failed to get target user: {e}")))?
             .ok_or_else(|| AppError::not_found("Target user not found"))?;
@@ -351,14 +353,14 @@ impl ImpersonationRoutes {
         for session in &sessions {
             let impersonator_email = resources
                 .database
-                .get_user(session.impersonator_id)
+                .get_user_global(session.impersonator_id)
                 .await
                 .ok()
                 .flatten()
                 .map(|u| u.email);
             let target_email = resources
                 .database
-                .get_user(session.target_user_id)
+                .get_user_global(session.target_user_id)
                 .await
                 .ok()
                 .flatten()
@@ -410,14 +412,14 @@ impl ImpersonationRoutes {
         // Get user details
         let impersonator_email = resources
             .database
-            .get_user(session.impersonator_id)
+            .get_user_global(session.impersonator_id)
             .await
             .ok()
             .flatten()
             .map(|u| u.email);
         let target_email = resources
             .database
-            .get_user(session.target_user_id)
+            .get_user_global(session.target_user_id)
             .await
             .ok()
             .flatten()

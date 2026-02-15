@@ -355,7 +355,7 @@ impl ActivityRetrievalContext {
             *counts.entry(sport_type).or_insert(0) += 1;
         }
 
-        let total = activities.len() as f64;
+        let total = activities.len().max(1) as f64;
         let mut breakdown: Vec<_> = counts
             .into_iter()
             .map(|(sport_type, count)| ActivityTypeBreakdown {

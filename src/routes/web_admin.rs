@@ -247,9 +247,10 @@ async fn get_admin_tenant_scope(
     admin_user_id: Uuid,
     active_tenant_id: Option<Uuid>,
 ) -> Result<Option<TenantId>, AppError> {
+    // SECURITY: Global lookup — resolving admin's own tenant scope
     let user = resources
         .database
-        .get_user(admin_user_id)
+        .get_user_global(admin_user_id)
         .await
         .map_err(|e| AppError::internal(format!("Failed to fetch admin user: {e}")))?
         .ok_or_else(|| AppError::not_found("Admin user not found"))?;
@@ -283,9 +284,10 @@ async fn verify_admin_tenant_access(
     admin_user_id: Uuid,
     target_tenant_id: TenantId,
 ) -> Result<(), AppError> {
+    // SECURITY: Global lookup — verifying admin's own tenant access
     let user = resources
         .database
-        .get_user(admin_user_id)
+        .get_user_global(admin_user_id)
         .await
         .map_err(|e| AppError::internal(format!("Failed to fetch admin user: {e}")))?
         .ok_or_else(|| AppError::not_found("Admin user not found"))?;
@@ -614,19 +616,22 @@ impl WebAdminRoutes {
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
-        // Get the user to approve
-        let user = resources
-            .database
-            .get_user(user_uuid)
-            .await
-            .map_err(|e| {
-                error!(error = %e, "Failed to fetch user from database");
-                AppError::internal(format!("Failed to fetch user: {e}"))
-            })?
-            .ok_or_else(|| {
-                warn!("User not found: {}", user_id);
-                AppError::not_found("User not found")
-            })?;
+        // Tenant-scoped lookup: admin can only approve users in their own tenant
+        let admin_tenant =
+            get_admin_tenant_scope(&resources, auth.user_id, auth.active_tenant_id).await?;
+        let user = if let Some(tid) = admin_tenant {
+            resources.database.get_user(user_uuid, tid).await
+        } else {
+            resources.database.get_user_global(user_uuid).await
+        }
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch user from database");
+            AppError::internal(format!("Failed to fetch user: {e}"))
+        })?
+        .ok_or_else(|| {
+            warn!("User not found: {}", user_id);
+            AppError::not_found("User not found")
+        })?;
 
         if user.user_status == UserStatus::Active {
             return Ok((
@@ -696,19 +701,22 @@ impl WebAdminRoutes {
             AppError::invalid_input(format!("Invalid user ID format: {e}"))
         })?;
 
-        // Get the user to suspend
-        let user = resources
-            .database
-            .get_user(user_uuid)
-            .await
-            .map_err(|e| {
-                error!(error = %e, "Failed to fetch user from database");
-                AppError::internal(format!("Failed to fetch user: {e}"))
-            })?
-            .ok_or_else(|| {
-                warn!("User not found: {}", user_id);
-                AppError::not_found("User not found")
-            })?;
+        // Tenant-scoped lookup: admin can only suspend users in their own tenant
+        let admin_tenant =
+            get_admin_tenant_scope(&resources, auth.user_id, auth.active_tenant_id).await?;
+        let user = if let Some(tid) = admin_tenant {
+            resources.database.get_user(user_uuid, tid).await
+        } else {
+            resources.database.get_user_global(user_uuid).await
+        }
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch user from database");
+            AppError::internal(format!("Failed to fetch user: {e}"))
+        })?
+        .ok_or_else(|| {
+            warn!("User not found: {}", user_id);
+            AppError::not_found("User not found")
+        })?;
 
         if user.user_status == UserStatus::Suspended {
             return Ok((
@@ -757,9 +765,10 @@ impl WebAdminRoutes {
         user_id: Uuid,
         resources: &Arc<ServerResources>,
     ) -> Result<(), AppError> {
+        // SECURITY: Global lookup — checking admin's own super-admin role
         let user = resources
             .database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::internal(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User not found"))?;
@@ -955,13 +964,16 @@ impl WebAdminRoutes {
         let user_uuid = Uuid::parse_str(&user_id)
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
 
-        // Verify user exists and get email for response
-        let user = resources
-            .database
-            .get_user(user_uuid)
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
-            .ok_or_else(|| AppError::not_found("User not found"))?;
+        // Tenant-scoped lookup: admin can only reset passwords for users in their tenant
+        let admin_tenant =
+            get_admin_tenant_scope(&resources, auth.user_id, auth.active_tenant_id).await?;
+        let user = if let Some(tid) = admin_tenant {
+            resources.database.get_user(user_uuid, tid).await
+        } else {
+            resources.database.get_user_global(user_uuid).await
+        }
+        .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
+        .ok_or_else(|| AppError::not_found("User not found"))?;
 
         // Generate a cryptographically random reset token (48 chars alphanumeric)
         let raw_token: String = rand::thread_rng()
@@ -1019,13 +1031,16 @@ impl WebAdminRoutes {
         let user_uuid = uuid::Uuid::parse_str(&user_id)
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
 
-        // Get user
-        let user = resources
-            .database
-            .get_user(user_uuid)
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
-            .ok_or_else(|| AppError::not_found("User not found"))?;
+        // Tenant-scoped lookup: admin can only view metrics for users in their tenant
+        let admin_tenant =
+            get_admin_tenant_scope(&resources, auth.user_id, auth.active_tenant_id).await?;
+        let user = if let Some(tid) = admin_tenant {
+            resources.database.get_user(user_uuid, tid).await
+        } else {
+            resources.database.get_user_global(user_uuid).await
+        }
+        .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
+        .ok_or_else(|| AppError::not_found("User not found"))?;
 
         // Get current monthly usage
         let monthly_used = resources
@@ -1114,13 +1129,16 @@ impl WebAdminRoutes {
         let user_uuid = uuid::Uuid::parse_str(&user_id)
             .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
 
-        // Verify user exists
-        resources
-            .database
-            .get_user(user_uuid)
-            .await
-            .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
-            .ok_or_else(|| AppError::not_found("User not found"))?;
+        // Tenant-scoped lookup: admin can only view activity for users in their tenant
+        let admin_tenant =
+            get_admin_tenant_scope(&resources, auth.user_id, auth.active_tenant_id).await?;
+        if let Some(tid) = admin_tenant {
+            resources.database.get_user(user_uuid, tid).await
+        } else {
+            resources.database.get_user_global(user_uuid).await
+        }
+        .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
+        .ok_or_else(|| AppError::not_found("User not found"))?;
 
         // Get time range for activity using days parameter (default 30)
         let days = i64::from(params.days.unwrap_or(30).clamp(1, 365));

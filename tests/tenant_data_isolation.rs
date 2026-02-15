@@ -249,8 +249,8 @@ async fn test_oauth_token_isolation() -> Result<()> {
         create_test_tenant_user(&database, "oauth2@example.com", UserTier::Starter).await?;
 
     // Verify users are isolated - each user can only access their own data
-    let user1 = database.get_user(user1_id).await?;
-    let user2 = database.get_user(user2_id).await?;
+    let user1 = database.get_user_global(user1_id).await?;
+    let user2 = database.get_user_global(user2_id).await?;
 
     assert!(user1.is_some(), "User 1 should exist");
     assert!(user2.is_some(), "User 2 should exist");
@@ -421,8 +421,8 @@ async fn test_database_encryption_isolation() -> Result<()> {
         create_test_tenant_user(&database2, "encrypted2@example.com", UserTier::Starter).await?;
 
     // Verify users exist in their respective databases
-    let user1_from_db1 = database1.get_user(user1_id).await?;
-    let user2_from_db2 = database2.get_user(user2_id).await?;
+    let user1_from_db1 = database1.get_user_global(user1_id).await?;
+    let user2_from_db2 = database2.get_user_global(user2_id).await?;
 
     assert!(
         user1_from_db1.is_some(),
@@ -434,8 +434,8 @@ async fn test_database_encryption_isolation() -> Result<()> {
     );
 
     // Cross-database access should fail (user doesn't exist)
-    let user1_from_db2 = database2.get_user(user1_id).await?;
-    let user2_from_db1 = database1.get_user(user2_id).await?;
+    let user1_from_db2 = database2.get_user_global(user1_id).await?;
+    let user2_from_db1 = database1.get_user_global(user2_id).await?;
 
     assert!(
         user1_from_db2.is_none(),
@@ -483,8 +483,8 @@ async fn test_mcp_server_tenant_isolation() -> Result<()> {
         create_test_tenant_user(&database, "mcp2@example.com", UserTier::Professional).await?;
 
     // Get users for token generation
-    let user1 = database.get_user(user1_id).await?.unwrap();
-    let user2 = database.get_user(user2_id).await?.unwrap();
+    let user1 = database.get_user_global(user1_id).await?.unwrap();
+    let user2 = database.get_user_global(user2_id).await?.unwrap();
 
     // Generate JWT tokens for both users
     let jwks_manager = common::get_shared_test_jwks();

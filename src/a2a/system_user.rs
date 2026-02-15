@@ -125,7 +125,8 @@ impl A2ASystemUserService {
     pub async fn is_system_user(&self, user_id: Uuid) -> AppResult<bool> {
         if let Some(user) = self
             .database
-            .get_user(user_id)
+            // SECURITY: Global lookup — A2A system user validation, cross-tenant by design
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
         {
@@ -144,7 +145,8 @@ impl A2ASystemUserService {
     pub async fn get_client_id_for_system_user(&self, user_id: Uuid) -> AppResult<Option<String>> {
         if let Some(user) = self
             .database
-            .get_user(user_id)
+            // SECURITY: Global lookup — A2A system user validation, cross-tenant by design
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
         {

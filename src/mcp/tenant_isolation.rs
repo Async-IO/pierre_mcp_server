@@ -140,9 +140,10 @@ impl TenantIsolation {
     /// # Errors
     /// Returns an error if user lookup fails
     pub async fn get_user_with_tenant(&self, user_id: Uuid) -> AppResult<User> {
+        // SECURITY: Global lookup — tenant isolation resolves user to find their tenant
         self.resources
             .database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))
@@ -472,9 +473,9 @@ pub async fn validate_jwt_token_for_mcp(
         AppError::auth_invalid("Invalid user ID in token")
     })?;
 
-    // Verify user exists
+    // SECURITY: Global lookup — tenant extraction from JWT, tenant not yet known
     database
-        .get_user(user_id)
+        .get_user_global(user_id)
         .await
         .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
         .ok_or_else(|| AppError::not_found("User"))?;
@@ -627,9 +628,9 @@ pub async fn extract_tenant_context_internal(
 
     // Try to extract from user's default tenant (via tenant_users table)
     if let Some(user_id) = user_id {
-        // Verify user exists
+        // SECURITY: Global lookup — resolving user's default tenant
         database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))?;

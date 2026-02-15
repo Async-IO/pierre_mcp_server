@@ -379,8 +379,8 @@ impl ConfigurationRoutes {
         let processing_start = Instant::now();
         let user_id = auth.user_id;
 
-        // Verify user exists in database before proceeding
-        if let Err(e) = self.resources.database.get_user(user_id).await {
+        // SECURITY: Global lookup — config route, tenant not in scope for user check
+        if let Err(e) = self.resources.database.get_user_global(user_id).await {
             debug!("Database user lookup failed: {}", e);
         }
 
@@ -465,8 +465,8 @@ impl ConfigurationRoutes {
                 .ok();
         }
 
-        // Verify user exists in database before saving configuration
-        if let Err(e) = self.resources.database.get_user(user_id).await {
+        // SECURITY: Global lookup — config save, tenant not in scope for user check
+        if let Err(e) = self.resources.database.get_user_global(user_id).await {
             debug!("Database user lookup failed during save: {}", e);
         }
 

@@ -104,7 +104,10 @@ async fn test_user_management() {
     let user_id = create_test_user(&db).await;
 
     // Test user retrieval
-    let retrieved_user = db.get_user(user_id).await.expect("Failed to get user");
+    let retrieved_user = db
+        .get_user_global(user_id)
+        .await
+        .expect("Failed to get user");
     assert!(retrieved_user.is_some(), "User should exist");
 
     let user = retrieved_user.unwrap();

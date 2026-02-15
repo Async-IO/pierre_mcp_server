@@ -1094,10 +1094,11 @@ async fn verify_admin_access(
     user_uuid: Uuid,
     active_tenant_id: Option<&str>,
 ) -> Result<TenantId, ProtocolError> {
+    // SECURITY: Global lookup — admin role check before tenant is resolved
     let user = executor
         .resources
         .database
-        .get_user(user_uuid)
+        .get_user_global(user_uuid)
         .await
         .map_err(|e| ProtocolError::InternalError(format!("Failed to get user: {e}")))?
         .ok_or_else(|| ProtocolError::InvalidRequest(format!("User {user_uuid} not found")))?;

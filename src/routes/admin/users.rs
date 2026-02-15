@@ -267,7 +267,7 @@ pub(super) async fn handle_approve_user(
 
     let user = ctx
         .database
-        .get_user(user_uuid)
+        .get_user_global(user_uuid)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch user from database");
@@ -365,7 +365,7 @@ pub(super) async fn handle_suspend_user(
 
     let user = ctx
         .database
-        .get_user(user_uuid)
+        .get_user_global(user_uuid)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch user from database");
@@ -457,7 +457,7 @@ pub(super) async fn handle_delete_user(
 
     let user = ctx
         .database
-        .get_user(user_uuid)
+        .get_user_global(user_uuid)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch user from database");
@@ -538,7 +538,7 @@ pub(super) async fn handle_reset_user_password(
 
     let user = ctx
         .database
-        .get_user(user_uuid)
+        .get_user_global(user_uuid)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch user from database");
@@ -614,7 +614,7 @@ pub(super) async fn handle_get_user_rate_limit(
 
     let user = ctx
         .database
-        .get_user(user_uuid)
+        .get_user_global(user_uuid)
         .await
         .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
         .ok_or_else(|| AppError::not_found("User not found"))?;
@@ -708,7 +708,7 @@ pub(super) async fn handle_get_user_activity(
         .map_err(|e| AppError::invalid_input(format!("Invalid user ID format: {e}")))?;
 
     ctx.database
-        .get_user(user_uuid)
+        .get_user_global(user_uuid)
         .await
         .map_err(|e| AppError::internal(format!("Failed to fetch user: {e}")))?
         .ok_or_else(|| AppError::not_found("User not found"))?;

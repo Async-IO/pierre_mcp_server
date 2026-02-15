@@ -80,8 +80,15 @@ pub trait DatabaseProvider: Send + Sync + Clone {
     /// Create a new user account
     async fn create_user(&self, user: &User) -> AppResult<Uuid>;
 
-    /// Get user by ID
-    async fn get_user(&self, user_id: Uuid) -> AppResult<Option<User>>;
+    /// Get user by ID, scoped to a specific tenant for multi-tenant isolation
+    async fn get_user(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<Option<User>>;
+
+    /// Get user by ID without tenant scoping (for system-level operations)
+    ///
+    /// SECURITY: Use only when tenant context is not available — authentication
+    /// middleware, CLI tools, login/registration, and tenant resolution flows.
+    /// Prefer `get_user()` with `tenant_id` in all user-facing routes.
+    async fn get_user_global(&self, user_id: Uuid) -> AppResult<Option<User>>;
 
     /// Get user by email address
     async fn get_user_by_email(&self, email: &str) -> AppResult<Option<User>>;

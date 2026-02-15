@@ -95,7 +95,7 @@ async fn test_user_crud_operations() -> Result<()> {
     assert_eq!(user_id, user.id);
 
     // Get user by ID
-    let retrieved_user = db.get_user(user_id).await?;
+    let retrieved_user = db.get_user_global(user_id).await?;
     assert!(retrieved_user.is_some());
     assert_eq!(retrieved_user.unwrap().email, "test_crud@example.com");
 
@@ -111,7 +111,7 @@ async fn test_user_crud_operations() -> Result<()> {
     assert_eq!(user_required.id, user_id);
 
     // Test non-existent user
-    let non_existent = db.get_user(Uuid::new_v4()).await?;
+    let non_existent = db.get_user_global(Uuid::new_v4()).await?;
     assert!(non_existent.is_none());
 
     Ok(())
@@ -145,7 +145,7 @@ async fn test_user_last_active_update() -> Result<()> {
     assert!(result.is_ok());
 
     // Verify user can still be retrieved
-    let updated_user = db.get_user(user_id).await?;
+    let updated_user = db.get_user_global(user_id).await?;
     assert!(updated_user.is_some());
 
     Ok(())
@@ -853,7 +853,7 @@ async fn test_user_tier_handling() -> Result<()> {
         };
         assert_eq!(retrieved_keys[0].tier, expected_api_tier);
 
-        let retrieved_user = db.get_user(user_id).await?.unwrap();
+        let retrieved_user = db.get_user_global(user_id).await?.unwrap();
         assert_eq!(retrieved_user.tier, *tier);
     }
 
@@ -978,7 +978,7 @@ mod postgres_tests {
             let user_id = db.create_user(&user).await?;
 
             // Test user retrieval
-            let retrieved = db.get_user(user_id).await?.unwrap();
+            let retrieved = db.get_user_global(user_id).await?.unwrap();
             assert_eq!(retrieved.email, user.email);
             assert_eq!(retrieved.tier, *tier);
 
@@ -1238,7 +1238,7 @@ mod postgres_tests {
 
         // Verify all users were created
         for user_id in &user_ids {
-            let user = db.get_user(*user_id).await?;
+            let user = db.get_user_global(*user_id).await?;
             assert!(user.is_some());
         }
 
@@ -1291,7 +1291,7 @@ mod postgres_tests {
 
         // Test non-existent user operations
         let fake_user_id = Uuid::new_v4();
-        let result = db.get_user(fake_user_id).await?;
+        let result = db.get_user_global(fake_user_id).await?;
         assert!(result.is_none());
 
         // Test non-existent email required (should error)
@@ -1336,7 +1336,7 @@ mod postgres_tests {
 
                 // Create and immediately clean up to test pooling
                 let user_id = db_clone.create_user(&user).await?;
-                let retrieved = db_clone.get_user(user_id).await?;
+                let retrieved = db_clone.get_user_global(user_id).await?;
                 assert!(retrieved.is_some());
 
                 // Clean up immediately

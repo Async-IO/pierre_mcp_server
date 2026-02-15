@@ -2557,8 +2557,12 @@ impl DatabaseProvider for Database {
         Self::create_user_impl(self, user).await
     }
 
-    async fn get_user(&self, user_id: Uuid) -> AppResult<Option<User>> {
-        Self::get_user_impl(self, user_id).await
+    async fn get_user(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<Option<User>> {
+        Self::get_user_tenant_impl(self, user_id, tenant_id).await
+    }
+
+    async fn get_user_global(&self, user_id: Uuid) -> AppResult<Option<User>> {
+        Self::get_user_global_impl(self, user_id).await
     }
 
     async fn get_user_by_email(&self, email: &str) -> AppResult<Option<User>> {

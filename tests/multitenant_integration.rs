@@ -395,7 +395,7 @@ async fn test_multitenant_auth_flow() -> Result<()> {
     let user_id = Uuid::parse_str(&register_response.user_id)?;
 
     // Verify user exists in database
-    let user = database.get_user(user_id).await?.unwrap();
+    let user = database.get_user_global(user_id).await?.unwrap();
     assert_eq!(user.email, "test@multitenant.com");
     assert_eq!(user.display_name, Some("Multi-Tenant User".to_owned()));
     assert!(user.is_active);

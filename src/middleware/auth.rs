@@ -295,10 +295,10 @@ impl McpAuthMiddleware {
                 .ok()
         });
 
-        // Get user from database to check tier and rate limits
+        // SECURITY: Global lookup — JWT validation, no tenant context yet
         let user = self
             .database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 

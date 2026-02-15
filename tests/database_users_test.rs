@@ -47,7 +47,7 @@ async fn test_create_and_get_user() {
 
     // Get user by ID
     let retrieved = db
-        .get_user(user.id)
+        .get_user_global(user.id)
         .await
         .expect("Failed to get user")
         .expect("User not found");
@@ -100,7 +100,7 @@ async fn test_last_active_update() {
 
     // Verify update
     let updated = db
-        .get_user(user.id)
+        .get_user_global(user.id)
         .await
         .expect("Failed to get user")
         .expect("User not found");

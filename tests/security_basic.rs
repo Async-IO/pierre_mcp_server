@@ -31,7 +31,7 @@ async fn test_jwt_token_security() -> Result<()> {
     // Create test user
     let (user_id, _) =
         common::create_test_user_with_email(&database, "jwt_test@example.com").await?;
-    let user = database.get_user(user_id).await?.unwrap();
+    let user = database.get_user_global(user_id).await?.unwrap();
 
     // Generate valid JWT token
     let jwks_manager = common::get_shared_test_jwks();
@@ -202,7 +202,7 @@ async fn test_token_uniqueness() -> Result<()> {
     // Create test user
     let (user_id, _) =
         common::create_test_user_with_email(&database, "unique_test@example.com").await?;
-    let user = database.get_user(user_id).await?.unwrap();
+    let user = database.get_user_global(user_id).await?.unwrap();
 
     // Generate multiple tokens and verify uniqueness
     let mut tokens = HashSet::new();

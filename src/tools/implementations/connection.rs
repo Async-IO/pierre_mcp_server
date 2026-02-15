@@ -201,14 +201,16 @@ impl McpTool for ConnectProviderTool {
             }
         }
 
-        // Get user and build tenant context
-        // Verify user exists
-        database.get_user(context.user_id).await?.ok_or_else(|| {
-            AppError::new(
-                ErrorCode::ResourceNotFound,
-                format!("User {} not found", context.user_id),
-            )
-        })?;
+        // SECURITY: Global lookup — connection tool, tenant resolved from user's membership
+        database
+            .get_user_global(context.user_id)
+            .await?
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::ResourceNotFound,
+                    format!("User {} not found", context.user_id),
+                )
+            })?;
 
         // Resolve user's default tenant from tenant_users junction table (fallback)
         let user_default_tenant_id = database

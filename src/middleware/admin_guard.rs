@@ -64,8 +64,9 @@ use uuid::Uuid;
 /// # }
 /// ```
 pub async fn require_admin(user_id: Uuid, database: &Arc<Database>) -> Result<User, AppError> {
+    // SECURITY: Global lookup — admin guard runs before tenant context is resolved
     let user = database
-        .get_user(user_id)
+        .get_user_global(user_id)
         .await
         .map_err(|e| AppError::internal(format!("Failed to get user: {e}")))?
         .ok_or_else(|| AppError::not_found("User not found"))?;

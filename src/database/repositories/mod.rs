@@ -5,16 +5,22 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::a2a::auth::A2AClient;
-use pierre_core::models::TenantId;
 use crate::a2a::client::A2ASession;
 use crate::a2a::protocol::{A2ATask, TaskStatus};
 use crate::api_keys::{ApiKey, ApiKeyUsage, ApiKeyUsageStats};
-use crate::database::{A2AUsage, A2AUsageStats, DatabaseError};
-use crate::models::{User, UserOAuthApp, UserOAuthToken, UserStatus};
+use crate::database::{
+    A2AUsage, A2AUsageStats, ConversationRecord, ConversationSummary, CreateUserMcpTokenRequest,
+    DatabaseError, MessageRecord, UserMcpToken, UserMcpTokenCreated, UserMcpTokenInfo,
+};
+use crate::models::{ConnectionType, ProviderConnection, User, UserOAuthApp, UserOAuthToken, UserStatus};
+use crate::oauth2_client::OAuthClientState;
 use crate::pagination::{CursorPage, PaginationParams};
+use crate::permissions::impersonation::ImpersonationSession;
 use crate::rate_limiting::JwtUsage;
+use crate::tenant::llm_manager::{LlmCredentialRecord, LlmCredentialSummary};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use pierre_core::models::TenantId;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -55,6 +61,20 @@ pub mod user_repository;
 pub mod mobility_repository;
 /// Social features (friend connections, shared insights) repository implementation
 pub mod social_repository;
+/// Chat conversation and message management repository implementation
+pub mod chat_repository;
+/// User MCP token management repository implementation
+pub mod user_mcp_token_repository;
+/// Impersonation session management repository implementation
+pub mod impersonation_repository;
+/// LLM credential management repository implementation
+pub mod llm_credential_repository;
+/// Provider connection management repository implementation
+pub mod provider_connection_repository;
+/// Password reset token management repository implementation
+pub mod password_reset_repository;
+/// OAuth client-side state management repository implementation
+pub mod oauth_client_state_repository;
 
 // Re-export implementations
 pub use a2a_repository::A2ARepositoryImpl;
@@ -75,6 +95,13 @@ pub use usage_repository::UsageRepositoryImpl;
 pub use user_repository::UserRepositoryImpl;
 pub use mobility_repository::MobilityRepositoryImpl;
 pub use social_repository::SocialRepositoryImpl;
+pub use chat_repository::ChatRepositoryImpl;
+pub use user_mcp_token_repository::UserMcpTokenRepositoryImpl;
+pub use impersonation_repository::ImpersonationRepositoryImpl;
+pub use llm_credential_repository::LlmCredentialRepositoryImpl;
+pub use provider_connection_repository::ProviderConnectionRepositoryImpl;
+pub use password_reset_repository::PasswordResetRepositoryImpl;
+pub use oauth_client_state_repository::OAuthClientStateRepositoryImpl;
 
 // ================================
 // Repository Trait Definitions
@@ -86,14 +113,20 @@ pub trait UserRepository: Send + Sync {
     /// Create a new user account
     async fn create(&self, user: &User) -> Result<Uuid, DatabaseError>;
 
-    /// Get user by ID
-    async fn get_by_id(&self, id: Uuid) -> Result<Option<User>, DatabaseError>;
+    /// Get user by ID, scoped to a specific tenant
+    async fn get_by_id(&self, id: Uuid, tenant_id: TenantId) -> Result<Option<User>, DatabaseError>;
+
+    /// Get user by ID without tenant scoping (system-level operations)
+    async fn get_by_id_global(&self, id: Uuid) -> Result<Option<User>, DatabaseError>;
 
     /// Get user by email address
     async fn get_by_email(&self, email: &str) -> Result<Option<User>, DatabaseError>;
 
     /// Get user by email (required - fails if not found)
     async fn get_by_email_required(&self, email: &str) -> Result<User, DatabaseError>;
+
+    /// Get user by Firebase UID
+    async fn get_by_firebase_uid(&self, firebase_uid: &str) -> Result<Option<User>, DatabaseError>;
 
     /// Update user's last active timestamp
     async fn update_last_active(&self, id: Uuid) -> Result<(), DatabaseError>;
@@ -130,6 +163,18 @@ pub trait UserRepository: Send + Sync {
 
     /// Update user's `tenant_id` to link them to a tenant
     async fn update_tenant_id(&self, id: Uuid, tenant_id: TenantId) -> Result<(), DatabaseError>;
+
+    /// Update user's password hash
+    async fn update_password(&self, id: Uuid, password_hash: &str) -> Result<(), DatabaseError>;
+
+    /// Update user's display name
+    async fn update_display_name(&self, id: Uuid, display_name: &str) -> Result<User, DatabaseError>;
+
+    /// Delete a user and all associated data
+    async fn delete(&self, id: Uuid) -> Result<(), DatabaseError>;
+
+    /// Get the first admin user by creation date
+    async fn get_first_admin(&self) -> Result<Option<User>, DatabaseError>;
 }
 
 /// OAuth token storage repository (tenant-scoped)
@@ -1339,4 +1384,273 @@ pub trait SocialRepository: Send + Sync {
 
     /// Get friend count for a user
     async fn get_friend_count(&self, user_id: Uuid) -> Result<i64, DatabaseError>;
+}
+
+/// Chat conversation and message management repository
+#[async_trait]
+pub trait ChatRepository: Send + Sync {
+    /// Create a new chat conversation
+    async fn create_conversation(
+        &self,
+        user_id: &str,
+        tenant_id: TenantId,
+        title: &str,
+        model: &str,
+        system_prompt: Option<&str>,
+    ) -> Result<ConversationRecord, DatabaseError>;
+
+    /// Get a conversation by ID with user/tenant isolation
+    async fn get_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: TenantId,
+    ) -> Result<Option<ConversationRecord>, DatabaseError>;
+
+    /// List conversations for a user with pagination
+    async fn list_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: TenantId,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<ConversationSummary>, DatabaseError>;
+
+    /// Update conversation title
+    async fn update_conversation_title(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: TenantId,
+        title: &str,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Delete a conversation and its messages
+    async fn delete_conversation(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        tenant_id: TenantId,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Add a message to a conversation (verifies user owns the conversation)
+    async fn add_message(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        role: &str,
+        content: &str,
+        token_count: Option<u32>,
+        finish_reason: Option<&str>,
+    ) -> Result<MessageRecord, DatabaseError>;
+
+    /// Get all messages for a conversation (verifies user owns the conversation)
+    async fn get_messages(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> Result<Vec<MessageRecord>, DatabaseError>;
+
+    /// Get recent messages for a conversation (verifies user owns the conversation)
+    async fn get_recent_messages(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        limit: i64,
+    ) -> Result<Vec<MessageRecord>, DatabaseError>;
+
+    /// Get message count for a conversation (verifies user owns the conversation)
+    async fn get_message_count(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> Result<i64, DatabaseError>;
+
+    /// Delete all conversations for a user
+    async fn delete_all_user_conversations(
+        &self,
+        user_id: &str,
+        tenant_id: TenantId,
+    ) -> Result<i64, DatabaseError>;
+}
+
+/// User MCP token management repository
+#[async_trait]
+pub trait UserMcpTokenRepository: Send + Sync {
+    /// Create a new user MCP token for AI client authentication
+    async fn create(
+        &self,
+        user_id: Uuid,
+        request: &CreateUserMcpTokenRequest,
+    ) -> Result<UserMcpTokenCreated, DatabaseError>;
+
+    /// Validate a user MCP token and return the associated user ID
+    async fn validate(&self, token_value: &str) -> Result<Uuid, DatabaseError>;
+
+    /// List all MCP tokens for a user
+    async fn list(&self, user_id: Uuid) -> Result<Vec<UserMcpTokenInfo>, DatabaseError>;
+
+    /// Revoke a user MCP token
+    async fn revoke(&self, token_id: &str, user_id: Uuid) -> Result<(), DatabaseError>;
+
+    /// Get a user MCP token by ID
+    async fn get(
+        &self,
+        token_id: &str,
+        user_id: Uuid,
+    ) -> Result<Option<UserMcpToken>, DatabaseError>;
+
+    /// Cleanup expired user MCP tokens (mark as revoked)
+    async fn cleanup_expired(&self) -> Result<u64, DatabaseError>;
+}
+
+/// Impersonation session management repository
+#[async_trait]
+pub trait ImpersonationRepository: Send + Sync {
+    /// Create a new impersonation session for audit trail
+    async fn create_session(&self, session: &ImpersonationSession) -> Result<(), DatabaseError>;
+
+    /// Get impersonation session by ID
+    async fn get_session(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<ImpersonationSession>, DatabaseError>;
+
+    /// Get active impersonation session where user is impersonator or target
+    async fn get_active_session(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<ImpersonationSession>, DatabaseError>;
+
+    /// End an impersonation session
+    async fn end_session(&self, session_id: &str) -> Result<(), DatabaseError>;
+
+    /// End all active impersonation sessions for an impersonator
+    async fn end_all_sessions(&self, impersonator_id: Uuid) -> Result<u64, DatabaseError>;
+
+    /// List impersonation sessions with optional filters
+    async fn list_sessions(
+        &self,
+        impersonator_id: Option<Uuid>,
+        target_user_id: Option<Uuid>,
+        active_only: bool,
+        limit: u32,
+    ) -> Result<Vec<ImpersonationSession>, DatabaseError>;
+}
+
+/// LLM credential management repository
+#[async_trait]
+pub trait LlmCredentialRepository: Send + Sync {
+    /// Store LLM credentials (user-specific or tenant-level)
+    async fn store(&self, record: &LlmCredentialRecord) -> Result<(), DatabaseError>;
+
+    /// Get LLM credentials for a specific provider
+    ///
+    /// # Arguments
+    /// * `tenant_id` - Tenant ID
+    /// * `user_id` - User ID (None for tenant-level default)
+    /// * `provider` - LLM provider name (e.g., "gemini", "groq")
+    async fn get(
+        &self,
+        tenant_id: TenantId,
+        user_id: Option<Uuid>,
+        provider: &str,
+    ) -> Result<Option<LlmCredentialRecord>, DatabaseError>;
+
+    /// List all LLM credentials for a tenant (for admin UI)
+    async fn list(&self, tenant_id: TenantId) -> Result<Vec<LlmCredentialSummary>, DatabaseError>;
+
+    /// Delete LLM credentials
+    async fn delete(
+        &self,
+        tenant_id: TenantId,
+        user_id: Option<Uuid>,
+        provider: &str,
+    ) -> Result<bool, DatabaseError>;
+
+    /// Get admin config override value by key (for system-wide LLM API keys)
+    async fn get_admin_config_override(
+        &self,
+        config_key: &str,
+        tenant_id: Option<TenantId>,
+    ) -> Result<Option<String>, DatabaseError>;
+}
+
+/// Provider connection management repository
+#[async_trait]
+pub trait ProviderConnectionRepository: Send + Sync {
+    /// Register a provider connection (upsert)
+    async fn register(
+        &self,
+        user_id: Uuid,
+        tenant_id: TenantId,
+        provider: &str,
+        connection_type: &ConnectionType,
+        metadata: Option<&str>,
+    ) -> Result<(), DatabaseError>;
+
+    /// Remove a provider connection
+    async fn remove(
+        &self,
+        user_id: Uuid,
+        tenant_id: TenantId,
+        provider: &str,
+    ) -> Result<(), DatabaseError>;
+
+    /// Get all provider connections for a user
+    ///
+    /// When `tenant_id` is None, returns cross-tenant view.
+    /// When Some, scopes to that specific tenant.
+    async fn get_user_connections(
+        &self,
+        user_id: Uuid,
+        tenant_id: Option<TenantId>,
+    ) -> Result<Vec<ProviderConnection>, DatabaseError>;
+
+    /// Check if a specific provider is connected for a user (cross-tenant)
+    async fn is_connected(&self, user_id: Uuid, provider: &str) -> Result<bool, DatabaseError>;
+}
+
+/// Password reset token management repository
+#[async_trait]
+pub trait PasswordResetRepository: Send + Sync {
+    /// Store a password reset token (hashed) for a user
+    ///
+    /// Returns the token ID. The raw token is never stored -- only its SHA-256 hash.
+    async fn store_token(
+        &self,
+        user_id: Uuid,
+        token_hash: &str,
+        created_by: &str,
+    ) -> Result<Uuid, DatabaseError>;
+
+    /// Consume a password reset token by its hash
+    ///
+    /// Returns the `user_id` if the token is valid (exists, not expired, not used).
+    /// Marks the token as used atomically.
+    async fn consume_token(&self, token_hash: &str) -> Result<Uuid, DatabaseError>;
+
+    /// Invalidate all unused reset tokens for a user
+    ///
+    /// Called after a successful password change to prevent stale tokens from being used.
+    async fn invalidate_user_tokens(&self, user_id: Uuid) -> Result<(), DatabaseError>;
+}
+
+/// OAuth client-side state management repository
+#[async_trait]
+pub trait OAuthClientStateRepository: Send + Sync {
+    /// Store OAuth client-side state for CSRF protection and PKCE verifier storage
+    ///
+    /// Used when Pierre acts as an OAuth client connecting to external providers.
+    async fn store(&self, state: &OAuthClientState) -> Result<(), DatabaseError>;
+
+    /// Consume OAuth client state atomically (verify and mark as used)
+    ///
+    /// Returns the state if valid, not expired, and not already used.
+    async fn consume(
+        &self,
+        state_value: &str,
+        provider: &str,
+        now: DateTime<Utc>,
+    ) -> Result<Option<OAuthClientState>, DatabaseError>;
 }

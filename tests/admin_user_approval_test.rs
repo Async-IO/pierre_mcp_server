@@ -195,7 +195,7 @@ async fn test_approve_user() -> Result<()> {
     // Instead, we'll directly test creating users with approved_by field set
 
     // Verify the pending user was created correctly
-    let pending_user_check = database.get_user(user_id).await?.unwrap();
+    let pending_user_check = database.get_user_global(user_id).await?.unwrap();
     assert_eq!(pending_user_check.user_status, UserStatus::Pending);
 
     // Now test creating a new user with approved_by set to the admin
@@ -223,7 +223,10 @@ async fn test_approve_user() -> Result<()> {
     database.create_user(&new_approved_user).await?;
 
     // Verify the new user was created with approval fields set
-    let created_user = database.get_user(new_approved_user.id).await?.unwrap();
+    let created_user = database
+        .get_user_global(new_approved_user.id)
+        .await?
+        .unwrap();
     assert_eq!(created_user.user_status, UserStatus::Active);
     assert_eq!(created_user.approved_by, Some(admin_user_id));
     assert!(created_user.approved_at.is_some());
@@ -268,7 +271,7 @@ async fn test_suspend_user() -> Result<()> {
         .await?;
 
     // Verify user status in database
-    let updated_user = database.get_user(user_id).await?.unwrap();
+    let updated_user = database.get_user_global(user_id).await?.unwrap();
     assert_eq!(updated_user.user_status, UserStatus::Suspended);
 
     // Clean up test environment variable
@@ -306,7 +309,7 @@ async fn test_user_status_transitions() -> Result<()> {
     database.create_user(&user).await?;
 
     // Test status is initially pending
-    let retrieved_user = database.get_user(user_id).await?.unwrap();
+    let retrieved_user = database.get_user_global(user_id).await?.unwrap();
     assert_eq!(retrieved_user.user_status, UserStatus::Pending);
     assert!(retrieved_user.approved_by.is_none());
 
@@ -367,7 +370,7 @@ async fn test_approve_user_assigns_admin_tenant() -> Result<()> {
         .await?;
 
     // Verify user is now active
-    let user_after = database.get_user(pending_user_id).await?.unwrap();
+    let user_after = database.get_user_global(pending_user_id).await?.unwrap();
     assert_eq!(user_after.user_status, UserStatus::Active);
     // Tenant assignment is managed via user_tenants junction table
 
@@ -426,12 +429,12 @@ async fn test_approved_users_share_tenant_with_admin() -> Result<()> {
 
     // Verify all approved users are active (tenant assignment managed via user_tenants table)
     for user_id in approved_user_ids {
-        let user = database.get_user(user_id).await?.unwrap();
+        let user = database.get_user_global(user_id).await?.unwrap();
         assert_eq!(user.user_status, UserStatus::Active);
     }
 
     // Admin should still exist
-    let admin = database.get_user(admin_user_id).await?.unwrap();
+    let admin = database.get_user_global(admin_user_id).await?.unwrap();
     assert!(admin.is_admin);
 
     // Clean up test environment variable
@@ -469,14 +472,14 @@ async fn test_delete_user() -> Result<()> {
     database.create_user(&user_to_delete).await?;
 
     // Verify user exists before deletion
-    let user_before = database.get_user(user_id).await?;
+    let user_before = database.get_user_global(user_id).await?;
     assert!(user_before.is_some(), "User should exist before deletion");
 
     // Delete the user
     database.delete_user(user_id).await?;
 
     // Verify user no longer exists
-    let user_after = database.get_user(user_id).await?;
+    let user_after = database.get_user_global(user_id).await?;
     assert!(user_after.is_none(), "User should not exist after deletion");
 
     // Clean up test environment variable

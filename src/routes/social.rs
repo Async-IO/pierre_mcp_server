@@ -32,7 +32,7 @@ use crate::{
     database_plugins::DatabaseProvider,
     errors::{AppError, ErrorCode},
     intelligence::{
-        insight_adapter::{InsightAdapter, UserTrainingContext},
+        insight_adapter::UserTrainingContext,
         insight_validation::{validate_insight_with_policy, ValidationVerdict},
         social_insights::{
             InsightContextBuilder, InsightGenerationContext, InsightSuggestion,
@@ -50,6 +50,7 @@ use crate::{
     },
     protocols::universal::auth_service::AuthService,
     security::cookies::get_cookie_value,
+    services::social_insights,
 };
 
 // ============================================================================
@@ -891,10 +892,10 @@ impl SocialRoutes {
         content: &str,
         insight_type: InsightType,
     ) -> Result<String, AppError> {
-        // Get user tier
+        // SECURITY: Global lookup — sharing policy check on authenticated user
         let user = resources
             .database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 
@@ -972,8 +973,8 @@ impl SocialRoutes {
                 conn.initiator_id
             };
 
-            // Fetch friend's user info
-            let friend_user = resources.database.get_user(friend_id).await?;
+            // Fetch friend's user info (social connections enforce tenant scope)
+            let friend_user = resources.database.get_user_global(friend_id).await?;
             let (friend_display_name, friend_email) = match friend_user {
                 Some(user) => (user.display_name, user.email),
                 None => (None, format!("user-{friend_id}")),
@@ -1016,27 +1017,10 @@ impl SocialRoutes {
         let receiver_id = Uuid::parse_str(&body.receiver_id)
             .map_err(|_| AppError::invalid_input("Invalid receiver_id format"))?;
 
-        // Check if they're not sending to themselves
-        if auth.user_id == receiver_id {
-            return Err(AppError::invalid_input(
-                "Cannot send friend request to yourself",
-            ));
-        }
+        let result =
+            social_insights::create_friend_request(&social, auth.user_id, receiver_id).await?;
 
-        // Check if connection already exists
-        let existing = social
-            .get_friend_connection_between(auth.user_id, receiver_id)
-            .await?;
-        if existing.is_some() {
-            return Err(AppError::invalid_input(
-                "Friend connection already exists between these users",
-            ));
-        }
-
-        let connection = FriendConnection::new(auth.user_id, receiver_id);
-        social.create_friend_connection(&connection).await?;
-
-        let response: FriendConnectionResponse = connection.into();
+        let response: FriendConnectionResponse = result.connection.into();
         Ok((StatusCode::CREATED, Json(response)).into_response())
     }
 
@@ -1058,7 +1042,7 @@ impl SocialRoutes {
         let mut sent = Vec::with_capacity(sent_conns.len());
         for conn in sent_conns {
             let receiver_id_str = conn.receiver_id.to_string();
-            let receiver_user = resources.database.get_user(conn.receiver_id).await?;
+            let receiver_user = resources.database.get_user_global(conn.receiver_id).await?;
             let (user_display_name, user_email) = match receiver_user {
                 Some(user) => (user.display_name, user.email),
                 None => (None, format!("user-{receiver_id_str}")),
@@ -1082,7 +1066,10 @@ impl SocialRoutes {
         let mut received = Vec::with_capacity(received_conns.len());
         for conn in received_conns {
             let initiator_id_str = conn.initiator_id.to_string();
-            let initiator_user = resources.database.get_user(conn.initiator_id).await?;
+            let initiator_user = resources
+                .database
+                .get_user_global(conn.initiator_id)
+                .await?;
             let (user_display_name, user_email) = match initiator_user {
                 Some(user) => (user.display_name, user.email),
                 None => (None, format!("user-{initiator_id_str}")),
@@ -2110,26 +2097,6 @@ impl SocialRoutes {
         let insight_id =
             Uuid::parse_str(&id).map_err(|_| AppError::invalid_input("Invalid insight ID"))?;
 
-        // Verify insight exists
-        let source_insight = social
-            .get_shared_insight(insight_id, auth.user_id)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("Insight {id}")))?;
-
-        // Check if user has already adapted this insight
-        if let Some(existing_adaptation) = social
-            .get_adapted_insight_by_source(insight_id, auth.user_id)
-            .await?
-        {
-            // Return existing adaptation instead of creating duplicate
-            let response = AdaptInsightResultResponse {
-                adapted: existing_adaptation.into(),
-                source_insight: source_insight.into(),
-                metadata: Self::build_metadata(),
-            };
-            return Ok((StatusCode::OK, Json(response)).into_response());
-        }
-
         // Use provider from body or fall back to environment default
         let provider_name = body.provider.clone().unwrap_or_else(default_provider);
 
@@ -2144,23 +2111,27 @@ impl SocialRoutes {
         .await
         .unwrap_or_else(|_| UserTrainingContext::default());
 
-        // Use the InsightAdapter to generate personalized content
-        let insight_adapter = InsightAdapter::new();
-        let adaptation_result =
-            insight_adapter.adapt(&source_insight, &user_context, body.context.as_deref());
+        let result = social_insights::adapt_insight_for_user(
+            &social,
+            auth.user_id,
+            insight_id,
+            &user_context,
+            body.context.as_deref(),
+        )
+        .await?;
 
-        // Create the adapted insight using the real adaptation
-        let adapted_insight =
-            InsightAdapter::create_adapted_insight(insight_id, auth.user_id, &adaptation_result);
-
-        social.create_adapted_insight(&adapted_insight).await?;
+        let status = if result.already_existed {
+            StatusCode::OK
+        } else {
+            StatusCode::CREATED
+        };
 
         let response = AdaptInsightResultResponse {
-            adapted: adapted_insight.into(),
-            source_insight: source_insight.into(),
+            adapted: result.adapted.into(),
+            source_insight: result.source_insight.into(),
             metadata: Self::build_metadata(),
         };
-        Ok((StatusCode::CREATED, Json(response)).into_response())
+        Ok((status, Json(response)).into_response())
     }
 
     /// Handle GET /api/social/adapted - List user's adapted insights
@@ -2237,37 +2208,23 @@ impl SocialRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let social = Self::get_social_manager(&resources)?;
 
-        let users = social
-            .search_discoverable_users(&query.q, query.limit.unwrap_or(20).clamp(1, 50))
-            .await?;
-
-        // Filter out self and build response with friend status
-        let mut results = Vec::new();
-        for (user_id, email, display_name) in users {
-            if user_id == auth.user_id {
-                continue;
-            }
-
-            let connection = social
-                .get_friend_connection_between(auth.user_id, user_id)
+        // Safe cast: limit is clamped to [1, 50] which fits in u32
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        let limit = query.limit.unwrap_or(20).clamp(1, 50) as u32;
+        let enriched =
+            social_insights::search_users_with_status(&social, auth.user_id, &query.q, limit)
                 .await?;
 
-            let is_friend = connection.as_ref().is_some_and(|c| c.status.is_connected());
-            let has_pending_request = connection
-                .as_ref()
-                .is_some_and(|c| c.status == FriendStatus::Pending);
-
-            // Only expose email to connected friends for privacy
-            let visible_email = if is_friend { Some(email) } else { None };
-
-            results.push(UserProfileResponse {
-                id: user_id.to_string(),
-                display_name,
-                email: visible_email,
-                is_friend,
-                has_pending_request,
-            });
-        }
+        let results: Vec<UserProfileResponse> = enriched
+            .into_iter()
+            .map(|u| UserProfileResponse {
+                id: u.user_id.to_string(),
+                display_name: u.display_name,
+                email: u.visible_email,
+                is_friend: u.is_friend,
+                has_pending_request: u.has_pending_request,
+            })
+            .collect();
 
         let response = SearchUsersResponse {
             total: results.len(),

@@ -118,7 +118,7 @@ fn bench_user_lookup(c: &mut Criterion) {
         b.iter(|| {
             let id = user_ids[index % user_ids.len()];
             index += 1;
-            rt.block_on(async { db.get_user(black_box(id)).await })
+            rt.block_on(async { db.get_user_global(black_box(id)).await })
         });
     });
 
@@ -325,7 +325,7 @@ fn bench_concurrent_operations(c: &mut Criterion) {
                     .map(|i| {
                         let db = db.clone();
                         let id = user_ids[i % user_ids.len()];
-                        tokio::spawn(async move { db.get_user(id).await })
+                        tokio::spawn(async move { db.get_user_global(id).await })
                     })
                     .collect();
 
@@ -348,7 +348,7 @@ fn bench_concurrent_operations(c: &mut Criterion) {
                 for i in 0..10 {
                     let db = db.clone();
                     let id = user_ids[i % user_ids.len()];
-                    read_handles.push(tokio::spawn(async move { db.get_user(id).await }));
+                    read_handles.push(tokio::spawn(async move { db.get_user_global(id).await }));
                 }
 
                 // 10 writes (update last active)

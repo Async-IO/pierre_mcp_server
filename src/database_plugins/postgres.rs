@@ -391,7 +391,64 @@ impl DatabaseProvider for PostgresDatabase {
         Ok(user.id)
     }
 
-    async fn get_user(&self, user_id: Uuid) -> AppResult<Option<User>> {
+    async fn get_user(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<Option<User>> {
+        let row = sqlx::query(
+            r"
+            SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
+                   role, user_status, approved_by, approved_at, created_at, last_active,
+                   firebase_uid, auth_provider
+            FROM users
+            WHERE id = $1 AND tenant_id = $2
+            ",
+        )
+        .bind(user_id)
+        .bind(tenant_id.0)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::database(format!("Failed to get user by ID+tenant: {e}")))?;
+
+        row.map_or_else(
+            || Ok(None),
+            |row| {
+                Ok(Some(User {
+                    id: row.get("id"),
+                    email: row.get("email"),
+                    display_name: row.get("display_name"),
+                    password_hash: row.get("password_hash"),
+                    tier: {
+                        let tier_str: String = row.get("tier");
+                        match tier_str.as_str() {
+                            tiers::PROFESSIONAL => UserTier::Professional,
+                            tiers::ENTERPRISE => UserTier::Enterprise,
+                            _ => UserTier::Starter,
+                        }
+                    },
+                    strava_token: None, // Tokens are loaded separately
+                    fitbit_token: None, // Tokens are loaded separately
+                    is_active: row.get("is_active"),
+                    user_status: {
+                        let status_str: String = row.get("user_status");
+                        shared::enums::str_to_user_status(&status_str)
+                    },
+                    is_admin: row.get("is_admin"),
+                    role: {
+                        let role_str: Option<String> = row.try_get("role").ok().flatten();
+                        role_str.map_or(UserRole::User, |s| shared::enums::str_to_user_role(&s))
+                    },
+                    approved_by: row.get("approved_by"),
+                    approved_at: row.get("approved_at"),
+                    created_at: row.get("created_at"),
+                    last_active: row.get("last_active"),
+                    firebase_uid: row.try_get("firebase_uid").ok().flatten(),
+                    auth_provider: row
+                        .try_get("auth_provider")
+                        .unwrap_or_else(|_| "email".to_owned()),
+                }))
+            },
+        )
+    }
+
+    async fn get_user_global(&self, user_id: Uuid) -> AppResult<Option<User>> {
         let row = sqlx::query(
             r"
             SELECT id, email, display_name, password_hash, tier, tenant_id, is_active, is_admin,
@@ -422,8 +479,8 @@ impl DatabaseProvider for PostgresDatabase {
                             _ => UserTier::Starter,
                         }
                     },
-                    strava_token: None, // Tokens are loaded separately
-                    fitbit_token: None, // Tokens are loaded separately
+                    strava_token: None,
+                    fitbit_token: None,
                     is_active: row.get("is_active"),
                     user_status: {
                         let status_str: String = row.get("user_status");
@@ -879,7 +936,7 @@ impl DatabaseProvider for PostgresDatabase {
         .map_err(|e| AppError::database(format!("Failed to update user status: {e}")))?;
 
         // Return updated user
-        self.get_user(user_id)
+        self.get_user_global(user_id)
             .await?
             .ok_or_else(|| AppError::not_found("User after status update"))
     }
@@ -944,7 +1001,7 @@ impl DatabaseProvider for PostgresDatabase {
             return Err(AppError::not_found(format!("User with ID: {user_id}")));
         }
 
-        self.get_user(user_id)
+        self.get_user_global(user_id)
             .await?
             .ok_or_else(|| AppError::not_found("User after display name update"))
     }

@@ -251,9 +251,9 @@ pub async fn create_tenant(
 ) -> AppResult<CreateTenantResponse> {
     info!("Creating new tenant: {}", tenant_request.name);
 
-    // Verify user is authenticated and has tenant creation permissions
+    // SECURITY: Global lookup — creating a new tenant, no tenant context yet
     database
-        .get_user(auth_result.user_id)
+        .get_user_global(auth_result.user_id)
         .await
         .map_err(|e| AppError::database(e.to_string()))?;
 

@@ -13,7 +13,6 @@ use crate::models::ConnectionType;
 use crate::models::TenantId;
 use crate::{
     auth::AuthResult,
-    config::LlmProviderType,
     database::{ConversationRecord, MessageRecord},
     database_plugins::DatabaseProvider,
     errors::AppError,
@@ -24,6 +23,7 @@ use crate::{
     mcp::resources::ServerResources,
     protocols::universal::{UniversalExecutor, UniversalRequest, UniversalResponse},
     security::cookies::get_cookie_value,
+    services::chat_orchestration,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -877,27 +877,17 @@ impl ChatRoutes {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
 
-        // Use model from request, or fall back to PIERRE_LLM_MODEL env var
-        let model = match request.model.clone() {
-            Some(m) => m,
-            None => LlmProviderType::model_from_env().ok_or_else(|| {
-                AppError::config(
-                    "No model specified and PIERRE_LLM_MODEL environment variable not set",
-                )
-            })?,
-        };
+        let result = chat_orchestration::create_conversation(
+            resources.database.as_ref(),
+            &auth.user_id.to_string(),
+            tenant_id,
+            &request.title,
+            request.model.as_deref(),
+            request.system_prompt.as_deref(),
+        )
+        .await?;
 
-        let conv = resources
-            .database
-            .chat_create_conversation(
-                &auth.user_id.to_string(),
-                tenant_id,
-                &request.title,
-                &model,
-                request.system_prompt.as_deref(),
-            )
-            .await?;
-
+        let conv = result.conversation;
         let response = ConversationResponse {
             id: conv.id,
             title: conv.title,
@@ -1095,32 +1085,28 @@ impl ChatRoutes {
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
         let tenant_id = Self::get_tenant_id(auth.user_id, &resources).await?;
+        let user_id_str = auth.user_id.to_string();
 
-        // Get conversation to verify ownership and get model/system prompt
-        let conv = resources
-            .database
-            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), tenant_id)
-            .await?
-            .ok_or_else(|| AppError::not_found("Conversation not found"))?;
+        // Verify ownership and persist user message (crash-safe: saved before LLM dispatch)
+        let msg_result = chat_orchestration::persist_user_message(
+            resources.database.as_ref(),
+            &conversation_id,
+            &user_id_str,
+            tenant_id,
+            &request.content,
+        )
+        .await?;
 
-        // Save user message
-        let user_msg = resources
-            .database
-            .chat_add_message(
-                &conversation_id,
-                &auth.user_id.to_string(),
-                "user",
-                &request.content,
-                None,
-                None,
-            )
-            .await?;
+        let conv = msg_result.conversation;
+        let user_msg = msg_result.message;
 
-        // Get conversation history and build LLM messages with system prompt
-        let history = resources
-            .database
-            .chat_get_messages(&conversation_id, &auth.user_id.to_string())
-            .await?;
+        // Get conversation history for LLM context
+        let history = chat_orchestration::get_conversation_history(
+            resources.database.as_ref(),
+            &conversation_id,
+            &user_id_str,
+        )
+        .await?;
 
         // Check if this is an insight generation request
         // These use a dedicated prompt optimized for clean, shareable output
@@ -1187,7 +1173,7 @@ impl ChatRoutes {
             &mut llm_messages,
             &tools,
             &conv.model,
-            &auth.user_id.to_string(),
+            &user_id_str,
             tenant_id,
         )
         .await?;
@@ -1217,25 +1203,17 @@ impl ChatRoutes {
             processed_content
         };
 
-        // Save assistant response
-        let assistant_msg = resources
-            .database
-            .chat_add_message(
-                &conversation_id,
-                &auth.user_id.to_string(),
-                "assistant",
-                &final_content,
-                token_count,
-                result.finish_reason.as_deref(),
-            )
-            .await?;
-
-        // Get updated conversation for timestamp
-        let updated_conv = resources
-            .database
-            .chat_get_conversation(&conversation_id, &auth.user_id.to_string(), tenant_id)
-            .await?
-            .ok_or_else(|| AppError::internal("Failed to get updated conversation"))?;
+        // Persist assistant response and get updated conversation
+        let (assistant_msg, updated_conv) = chat_orchestration::persist_assistant_response(
+            resources.database.as_ref(),
+            &conversation_id,
+            &user_id_str,
+            tenant_id,
+            &final_content,
+            token_count,
+            result.finish_reason.as_deref(),
+        )
+        .await?;
 
         let response = ChatCompletionResponse {
             user_message: MessageResponse {

@@ -310,8 +310,13 @@ impl McpRoutes {
             return;
         };
 
-        // Verify user exists in database
-        let Ok(Some(..)) = state.resources.database.get_user(jwt_result.user_id).await else {
+        // SECURITY: Global lookup — WebSocket session setup, tenant resolved later
+        let Ok(Some(..)) = state
+            .resources
+            .database
+            .get_user_global(jwt_result.user_id)
+            .await
+        else {
             return;
         };
 

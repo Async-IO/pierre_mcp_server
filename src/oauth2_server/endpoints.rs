@@ -828,7 +828,8 @@ impl OAuth2AuthorizationServer {
         use super::models::{ValidateRefreshResponse, ValidationStatus};
 
         match Uuid::parse_str(&claims.sub) {
-            Ok(user_id) => match self.database.get_user(user_id).await {
+            // SECURITY: Global lookup — OAuth2 token validation, no tenant context
+            Ok(user_id) => match self.database.get_user_global(user_id).await {
                 Ok(Some(_user)) => Ok(ValidateRefreshResponse {
                     status: ValidationStatus::Valid,
                     expires_in: Some(claims.exp - Utc::now().timestamp()),

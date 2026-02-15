@@ -176,10 +176,10 @@ impl TenantRoutes {
             .await
             .map_err(|e| AppError::database(format!("Failed to get tenant: {e}")))?;
 
-        // Get user to generate new token
+        // SECURITY: Global lookup — tenant JWT refresh, user verified via auth middleware
         let user = resources
             .database
-            .get_user(auth.user_id)
+            .get_user_global(auth.user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))?;

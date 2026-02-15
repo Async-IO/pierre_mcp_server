@@ -353,7 +353,7 @@ async fn test_sdk_user_registration_flow() -> Result<()> {
 
     // Test 2: Verify user is created with pending status
     let user_id = uuid::Uuid::parse_str(&register_response.user_id)?;
-    let user = database.get_user(user_id).await?.unwrap();
+    let user = database.get_user_global(user_id).await?.unwrap();
     assert_eq!(user.user_status, UserStatus::Pending);
 
     // Test 3: Login succeeds for pending user but returns pending status
@@ -594,7 +594,7 @@ async fn test_sdk_complete_onboarding_simulation() -> Result<()> {
     database.create_api_key(&api_key).await?;
 
     // Step 6: Verify complete setup
-    let user = database.get_user(user_id).await?.unwrap();
+    let user = database.get_user_global(user_id).await?.unwrap();
     assert_eq!(user.user_status, UserStatus::Active);
     assert_eq!(user.email, "complete_test@example.com");
 

@@ -241,8 +241,8 @@ async fn test_multitenant_user_creation_and_isolation() -> Result<()> {
     database.create_user(&user2).await?;
 
     // Verify users exist and are isolated
-    let retrieved_user1 = database.get_user(user1_id).await?.unwrap();
-    let retrieved_user2 = database.get_user(user2_id).await?.unwrap();
+    let retrieved_user1 = database.get_user_global(user1_id).await?.unwrap();
+    let retrieved_user2 = database.get_user_global(user2_id).await?.unwrap();
 
     assert_eq!(retrieved_user1.email, "user1@test.com");
     assert_eq!(retrieved_user2.email, "user2@test.com");
@@ -577,9 +577,9 @@ async fn test_user_tier_management() -> Result<()> {
     database.create_user(&enterprise_user).await?;
 
     // Verify users have correct tiers
-    let retrieved_starter = database.get_user(starter_user.id).await?.unwrap();
-    let retrieved_pro = database.get_user(pro_user.id).await?.unwrap();
-    let retrieved_enterprise = database.get_user(enterprise_user.id).await?.unwrap();
+    let retrieved_starter = database.get_user_global(starter_user.id).await?.unwrap();
+    let retrieved_pro = database.get_user_global(pro_user.id).await?.unwrap();
+    let retrieved_enterprise = database.get_user_global(enterprise_user.id).await?.unwrap();
 
     assert_eq!(retrieved_starter.tier, UserTier::Starter);
     assert_eq!(retrieved_pro.tier, UserTier::Professional);
@@ -686,14 +686,14 @@ async fn test_session_state_management() -> Result<()> {
     database.update_last_active(user_id).await?;
 
     // Verify the timestamp was updated
-    let updated_user = database.get_user(user_id).await?.unwrap();
+    let updated_user = database.get_user_global(user_id).await?.unwrap();
     // last_active is a DateTime<Utc>, not an Option
 
     // Test multiple updates
     sleep(Duration::from_millis(10)).await;
     database.update_last_active(user_id).await?;
 
-    let updated_user2 = database.get_user(user_id).await?.unwrap();
+    let updated_user2 = database.get_user_global(user_id).await?.unwrap();
 
     // The second timestamp should be different (or at least not earlier)
     assert!(updated_user2.last_active >= updated_user.last_active);
@@ -885,7 +885,7 @@ async fn test_error_recovery_and_resilience() -> Result<()> {
 
     // 1. Test invalid user ID
     let non_existent_user_id = Uuid::new_v4();
-    let result = database.get_user(non_existent_user_id).await?;
+    let result = database.get_user_global(non_existent_user_id).await?;
     assert!(result.is_none());
 
     // 2. Test invalid token validation

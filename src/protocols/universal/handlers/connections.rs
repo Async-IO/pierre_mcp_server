@@ -362,8 +362,8 @@ pub fn handle_connect_provider(
             }
         }
 
-        // Verify user exists
-        match db.get_user(user_uuid).await {
+        // SECURITY: Global lookup — connection handler, tenant resolved from user's membership
+        match db.get_user_global(user_uuid).await {
             Ok(Some(_)) => {}
             Ok(None) => return Ok(connection_error(format!("User {user_uuid} not found"))),
             Err(e) => return Ok(connection_error(format!("Database error: {e}"))),

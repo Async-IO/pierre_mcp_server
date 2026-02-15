@@ -63,7 +63,7 @@ async fn test_memory_database_no_physical_files() -> Result<()> {
     );
 
     let user_id = database.create_user(&user).await?;
-    let retrieved_user = database.get_user(user_id).await?.unwrap();
+    let retrieved_user = database.get_user_global(user_id).await?.unwrap();
 
     assert_eq!(retrieved_user.email, "test@memory.test");
     assert_eq!(
@@ -119,12 +119,12 @@ async fn test_multiple_memory_databases_isolated() -> Result<()> {
     let user2_id = database2.create_user(&user2).await?;
 
     // Verify isolation - each database only contains its own user
-    assert!(database1.get_user(user1_id).await?.is_some());
-    assert!(database2.get_user(user2_id).await?.is_some());
+    assert!(database1.get_user_global(user1_id).await?.is_some());
+    assert!(database2.get_user_global(user2_id).await?.is_some());
 
     // User1 should not exist in database2 and vice versa
-    assert!(database2.get_user(user1_id).await?.is_none());
-    assert!(database1.get_user(user2_id).await?.is_none());
+    assert!(database2.get_user_global(user1_id).await?.is_none());
+    assert!(database1.get_user_global(user2_id).await?.is_none());
 
     Ok(())
 }

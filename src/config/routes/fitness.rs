@@ -117,10 +117,10 @@ impl FitnessConfigurationRoutes {
     /// - User is not found in database
     /// - User has no tenant assigned
     async fn get_user_tenant(&self, user_id: Uuid) -> AppResult<TenantId> {
-        // Verify user exists
+        // SECURITY: Global lookup — fitness config, resolving user's tenant
         self.resources
             .database
-            .get_user(user_id)
+            .get_user_global(user_id)
             .await
             .map_err(|e| AppError::database(format!("Failed to get user {user_id}: {e}")))?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;

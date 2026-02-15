@@ -94,14 +94,46 @@ impl Database {
         Ok(user.id)
     }
 
-    /// Get a user by ID
+    /// Get a user by ID without tenant scoping (system-level operations)
     ///
     /// # Errors
     ///
     /// Returns an error if the database query fails
-    pub async fn get_user_impl(&self, user_id: Uuid) -> AppResult<Option<User>> {
+    pub async fn get_user_global_impl(&self, user_id: Uuid) -> AppResult<Option<User>> {
         let user_id_str = user_id.to_string();
         self.get_user_by_field("id", &user_id_str).await
+    }
+
+    /// Get a user by ID, scoped to a specific tenant for multi-tenant isolation
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails
+    pub async fn get_user_tenant_impl(
+        &self,
+        user_id: Uuid,
+        tenant_id: TenantId,
+    ) -> AppResult<Option<User>> {
+        let query = r"
+            SELECT id, email, display_name, password_hash, tier,
+                   is_active, user_status, is_admin, approved_by, approved_at,
+                   created_at, last_active, firebase_uid, auth_provider
+            FROM users WHERE id = $1 AND tenant_id = $2
+        ";
+
+        let row = sqlx::query(query)
+            .bind(user_id.to_string())
+            .bind(tenant_id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user by id+tenant: {e}")))?;
+
+        if let Some(row) = row {
+            let user = Self::row_to_user(&row)?;
+            Ok(Some(user))
+        } else {
+            Ok(None)
+        }
     }
 
     /// Get a user by ID (alias for compatibility)
@@ -110,7 +142,7 @@ impl Database {
     ///
     /// Returns an error if the database query fails
     pub async fn get_user_by_id(&self, user_id: Uuid) -> AppResult<Option<User>> {
-        self.get_user_impl(user_id).await
+        self.get_user_global_impl(user_id).await
     }
 
     /// Get a user by email
@@ -637,7 +669,7 @@ impl Database {
         }
 
         // Return updated user
-        self.get_user_impl(user_id)
+        self.get_user_global_impl(user_id)
             .await?
             .ok_or_else(|| AppError::not_found("User after status update"))
     }
@@ -683,12 +715,22 @@ impl Database {
         self.create_user_impl(user).await
     }
 
-    /// Get user by ID (public API)
+    /// Get user by ID, scoped to a specific tenant (public API)
     ///
     /// # Errors
     /// Returns error if database operation fails
-    pub async fn get_user(&self, user_id: Uuid) -> AppResult<Option<User>> {
-        self.get_user_impl(user_id).await
+    pub async fn get_user(&self, user_id: Uuid, tenant_id: TenantId) -> AppResult<Option<User>> {
+        self.get_user_tenant_impl(user_id, tenant_id).await
+    }
+
+    /// Get user by ID without tenant scoping (public API)
+    ///
+    /// SECURITY: Use only when tenant context is not available.
+    ///
+    /// # Errors
+    /// Returns error if database operation fails
+    pub async fn get_user_global(&self, user_id: Uuid) -> AppResult<Option<User>> {
+        self.get_user_global_impl(user_id).await
     }
 
     /// Get user by email (public API)
@@ -852,7 +894,7 @@ impl Database {
         }
 
         // Return updated user
-        self.get_user_impl(user_id)
+        self.get_user_global_impl(user_id)
             .await?
             .ok_or_else(|| AppError::not_found("User after display name update"))
     }

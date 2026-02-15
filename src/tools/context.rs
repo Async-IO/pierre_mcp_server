@@ -165,10 +165,11 @@ impl ToolExecutionContext {
         }
 
         // Query database for user to check admin status
+        // SECURITY: Global lookup — tool context checks admin status before tenant is known
         let user: User = self
             .resources
             .database
-            .get_user(self.user_id)
+            .get_user_global(self.user_id)
             .await?
             .ok_or_else(|| {
                 AppError::new(
