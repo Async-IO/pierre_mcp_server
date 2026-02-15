@@ -21,6 +21,8 @@ use crate::auth::AuthManager;
 use crate::cache::factory::Cache;
 use crate::config::admin::AdminConfigService;
 use crate::config::environment::ServerConfig;
+use crate::database::coaches::CoachesManager;
+use crate::database::recipes::RecipeManager;
 use crate::database_plugins::factory::Database;
 use crate::database_plugins::DatabaseProvider;
 use crate::errors::{AppError, AppResult};
@@ -563,6 +565,38 @@ impl ServerResources {
     #[must_use]
     pub const fn builder() -> ServerResourcesBuilder {
         ServerResourcesBuilder::new()
+    }
+
+    /// Get a `CoachesManager` backed by the `SQLite` pool.
+    ///
+    /// Routes and tool handlers should use this instead of constructing
+    /// `CoachesManager` directly from `database.sqlite_pool()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AppError` if the database backend is not `SQLite`.
+    pub fn coaches_manager(&self) -> AppResult<CoachesManager> {
+        let pool = self
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| AppError::internal("SQLite database required for coaches"))?;
+        Ok(CoachesManager::new(pool.clone()))
+    }
+
+    /// Get a `RecipeManager` backed by the `SQLite` pool.
+    ///
+    /// Routes and tool handlers should use this instead of constructing
+    /// `RecipeManager` directly from `database.sqlite_pool()`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `AppError` if the database backend is not `SQLite`.
+    pub fn recipe_manager(&self) -> AppResult<RecipeManager> {
+        let pool = self
+            .database
+            .sqlite_pool()
+            .ok_or_else(|| AppError::internal("SQLite database required for recipes"))?;
+        Ok(RecipeManager::new(pool.clone()))
     }
 }
 

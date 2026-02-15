@@ -426,8 +426,6 @@ impl ChatRoutes {
         system_prompt: Option<&String>,
         tenant_id: TenantId,
     ) -> Option<String> {
-        use crate::database::coaches::CoachesManager;
-
         // Only inject on first message
         if history_len != 1 {
             return None;
@@ -437,9 +435,7 @@ impl ChatRoutes {
         let prompt = system_prompt?;
 
         // Only SQLite is supported for coaches - PostgreSQL databases skip startup query
-        let pool = resources.database.sqlite_pool()?;
-
-        let coaches_manager = CoachesManager::new(pool.clone());
+        let coaches_manager = resources.coaches_manager().ok()?;
 
         match coaches_manager
             .get_startup_query_by_system_prompt(prompt, tenant_id)

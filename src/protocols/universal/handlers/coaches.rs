@@ -37,10 +37,10 @@ struct CreateCoachParams {
 
 /// Get coaches manager from resources
 fn get_coaches_manager(executor: &UniversalToolExecutor) -> Result<CoachesManager, ProtocolError> {
-    let pool = executor.resources.database.sqlite_pool().ok_or_else(|| {
-        ProtocolError::InternalError("SQLite database required for coaches".to_owned())
-    })?;
-    Ok(CoachesManager::new(pool.clone()))
+    executor
+        .resources
+        .coaches_manager()
+        .map_err(|e| ProtocolError::InternalError(e.to_string()))
 }
 
 /// Handle `list_coaches` tool - list user's coaches with optional filtering

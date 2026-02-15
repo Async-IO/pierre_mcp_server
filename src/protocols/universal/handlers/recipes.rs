@@ -5,7 +5,6 @@
 // Copyright (c) 2025 Pierre Fitness Intelligence
 
 use crate::config::{IntelligenceConfig, MealTdeeProportionsConfig};
-use crate::database::recipes::RecipeManager;
 use crate::external::{UsdaClient, UsdaClientConfig};
 use crate::intelligence::recipes::{
     convert_to_grams, DietaryRestriction, IngredientUnit, MacroTargets, MealTiming, Recipe,
@@ -590,13 +589,10 @@ pub fn handle_save_recipe(
         recipe = recipe.with_ingredients(ingredients);
 
         // Save to database
-        let pool = executor
+        let manager = executor
             .resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
-
-        let manager = RecipeManager::new(pool.clone());
+            .recipe_manager()
+            .map_err(|e| ProtocolError::InternalError(e.to_string()))?;
         let recipe_id = manager
             .create_recipe(user_id, tenant_id, &recipe)
             .await
@@ -669,13 +665,10 @@ pub fn handle_list_recipes(
                 .or_else(|| v.as_f64().map(|f| f as u32))
         });
 
-        let pool = executor
+        let manager = executor
             .resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
-
-        let manager = RecipeManager::new(pool.clone());
+            .recipe_manager()
+            .map_err(|e| ProtocolError::InternalError(e.to_string()))?;
         let recipes = manager
             .list_recipes(user_id, tenant_id, meal_timing, Some(limit), offset)
             .await
@@ -755,13 +748,10 @@ pub fn handle_get_recipe(
                 ProtocolError::InvalidRequest("Missing required parameter: recipe_id".to_owned())
             })?;
 
-        let pool = executor
+        let manager = executor
             .resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
-
-        let manager = RecipeManager::new(pool.clone());
+            .recipe_manager()
+            .map_err(|e| ProtocolError::InternalError(e.to_string()))?;
         let recipe = manager
             .get_recipe(recipe_id, user_id, tenant_id)
             .await
@@ -849,13 +839,10 @@ pub fn handle_delete_recipe(
                 ProtocolError::InvalidRequest("Missing required parameter: recipe_id".to_owned())
             })?;
 
-        let pool = executor
+        let manager = executor
             .resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
-
-        let manager = RecipeManager::new(pool.clone());
+            .recipe_manager()
+            .map_err(|e| ProtocolError::InternalError(e.to_string()))?;
         let deleted = manager
             .delete_recipe(recipe_id, user_id, tenant_id)
             .await
@@ -932,13 +919,10 @@ pub fn handle_search_recipes(
                 .or_else(|| v.as_f64().map(|f| f as u32))
         });
 
-        let pool = executor
+        let manager = executor
             .resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| ProtocolError::InternalError("Database not available".to_owned()))?;
-
-        let manager = RecipeManager::new(pool.clone());
+            .recipe_manager()
+            .map_err(|e| ProtocolError::InternalError(e.to_string()))?;
         let recipes = manager
             .search_recipes(user_id, tenant_id, query, Some(limit), offset)
             .await

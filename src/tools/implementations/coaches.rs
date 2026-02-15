@@ -43,12 +43,7 @@ use crate::tools::traits::{McpTool, ToolCapabilities};
 
 /// Get `CoachesManager` from context resources
 fn get_coaches_manager(ctx: &ToolExecutionContext) -> AppResult<CoachesManager> {
-    let pool = ctx
-        .resources
-        .database
-        .sqlite_pool()
-        .ok_or_else(|| AppError::internal("SQLite database required for coaches"))?;
-    Ok(CoachesManager::new(pool.clone()))
+    ctx.resources.coaches_manager()
 }
 
 /// Get tenant ID from context, defaulting to `user_id` as `TenantId`

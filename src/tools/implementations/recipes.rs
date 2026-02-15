@@ -42,12 +42,7 @@ use crate::tools::traits::{McpTool, ToolCapabilities};
 
 /// Get `RecipeManager` from context resources
 fn get_recipe_manager(ctx: &ToolExecutionContext) -> AppResult<RecipeManager> {
-    let pool = ctx
-        .resources
-        .database
-        .sqlite_pool()
-        .ok_or_else(|| AppError::internal("SQLite database required for recipes"))?;
-    Ok(RecipeManager::new(pool.clone()))
+    ctx.resources.recipe_manager()
 }
 
 /// Get tenant ID from context

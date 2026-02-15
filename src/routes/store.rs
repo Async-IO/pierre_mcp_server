@@ -265,13 +265,9 @@ impl StoreRoutes {
         })
     }
 
-    /// Get coaches manager from the `SQLite` pool
+    /// Get coaches manager from server resources
     fn get_coaches_manager(resources: &Arc<ServerResources>) -> Result<CoachesManager, AppError> {
-        let pool = resources
-            .database
-            .sqlite_pool()
-            .ok_or_else(|| AppError::internal("SQLite database required for store"))?;
-        Ok(CoachesManager::new(pool.clone()))
+        resources.coaches_manager()
     }
 
     /// Build response metadata
