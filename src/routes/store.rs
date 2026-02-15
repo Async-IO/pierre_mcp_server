@@ -26,7 +26,6 @@ use uuid::Uuid;
 use crate::{
     auth::AuthResult,
     database::{Coach, CoachCategory, CoachesManager, PublishStatus},
-    database_plugins::DatabaseProvider,
     errors::AppError,
     mcp::resources::ServerResources,
     models::TenantId,
@@ -238,31 +237,12 @@ impl StoreRoutes {
 
     /// Get tenant ID for an authenticated user
     ///
-    /// Uses `active_tenant_id` from JWT claims (user's selected tenant) when available,
-    /// falling back to the user's first tenant for single-tenant users or tokens without `active_tenant_id`.
-    async fn get_user_tenant(
-        auth: &AuthResult,
-        resources: &Arc<ServerResources>,
-    ) -> Result<TenantId, AppError> {
-        // Prefer active_tenant_id from JWT claims (user's selected tenant)
-        if let Some(tenant_id) = auth.active_tenant_id {
-            return Ok(TenantId::from(tenant_id));
-        }
-        // Fall back to user's first tenant (single-tenant users or tokens without active_tenant_id)
-        let tenants = resources
-            .database
-            .list_tenants_for_user(auth.user_id)
-            .await
-            .map_err(|e| {
-                AppError::database(format!(
-                    "Failed to get tenants for user {}: {e}",
-                    auth.user_id
-                ))
-            })?;
-
-        tenants.first().map(|t| t.id).ok_or_else(|| {
-            AppError::invalid_input(format!("User {} has no tenant assigned", auth.user_id))
-        })
+    /// Extracts `active_tenant_id` from JWT claims (user's selected tenant).
+    /// Returns an error if no active tenant is set in the session.
+    fn get_user_tenant(auth: &AuthResult) -> Result<TenantId, AppError> {
+        auth.active_tenant_id
+            .map(TenantId::from)
+            .ok_or_else(|| AppError::auth_invalid("No active tenant in session"))
     }
 
     /// Get coaches manager from server resources
@@ -451,7 +431,7 @@ impl StoreRoutes {
         Path(coach_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&auth)?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
@@ -485,7 +465,7 @@ impl StoreRoutes {
         Path(coach_id): Path<String>,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&auth)?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 
@@ -518,7 +498,7 @@ impl StoreRoutes {
         headers: HeaderMap,
     ) -> Result<Response, AppError> {
         let auth = Self::authenticate(&headers, &resources).await?;
-        let tenant_id = Self::get_user_tenant(&auth, &resources).await?;
+        let tenant_id = Self::get_user_tenant(&auth)?;
 
         let manager = Self::get_coaches_manager(&resources)?;
 

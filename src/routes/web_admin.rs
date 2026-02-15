@@ -194,31 +194,15 @@ async fn create_default_mcp_token_for_user(database: &impl DatabaseProvider, use
 /// Assigns a user to the admin's tenant for multi-tenant isolation.
 /// This ensures the user sees the same prompts, configuration, etc. as other users in the tenant.
 ///
-/// Uses `active_tenant_id` from the admin's JWT claims when available,
-/// falling back to the admin's first tenant membership.
+/// Uses `active_tenant_id` from the admin's JWT claims to determine the target tenant.
+/// If the admin has no active tenant in their session, the assignment is skipped.
 async fn assign_user_to_admin_tenant(
     resources: &Arc<ServerResources>,
-    admin_user_id: uuid::Uuid,
     active_tenant_id: Option<Uuid>,
     target_user_id: uuid::Uuid,
 ) -> Result<(), AppError> {
-    // Prefer active_tenant_id from JWT claims (admin's selected tenant)
-    let admin_tenant_id = if let Some(tid) = active_tenant_id {
-        Some(TenantId::from(tid))
-    } else {
-        // Fall back to admin's first tenant membership
-        let admin_tenants = resources
-            .database
-            .list_tenants_for_user(admin_user_id)
-            .await
-            .map_err(|e| {
-                error!(error = %e, "Failed to get admin's tenants");
-                AppError::internal(format!("Failed to get admin tenants: {e}"))
-            })?;
-        admin_tenants.first().map(|t| t.id)
-    };
-
-    if let Some(tenant_id) = admin_tenant_id {
+    if let Some(tid) = active_tenant_id {
+        let tenant_id = TenantId::from(tid);
         // Update user's tenant_id in users table (kept in sync with tenant_users junction)
         resources
             .database
@@ -240,8 +224,8 @@ async fn assign_user_to_admin_tenant(
 /// Get the admin user's tenant scope for listing queries.
 ///
 /// Super-admins see all tenants (returns None). Regular admins are scoped
-/// to their `active_tenant_id` from JWT claims, falling back to their first
-/// tenant membership (returns `Some(tenant_id)`).
+/// to their `active_tenant_id` from JWT claims (returns `Some(tenant_id)`).
+/// Returns an error if a non-super-admin has no active tenant in their session.
 async fn get_admin_tenant_scope(
     resources: &Arc<ServerResources>,
     admin_user_id: Uuid,
@@ -260,19 +244,10 @@ async fn get_admin_tenant_scope(
         return Ok(None);
     }
 
-    // Prefer active_tenant_id from JWT claims (admin's selected tenant)
-    if let Some(tid) = active_tenant_id {
-        return Ok(Some(TenantId::from(tid)));
-    }
-
-    // Fall back to admin's first tenant membership
-    let admin_tenants = resources
-        .database
-        .list_tenants_for_user(admin_user_id)
-        .await
-        .map_err(|e| AppError::internal(format!("Failed to get admin tenants: {e}")))?;
-
-    Ok(admin_tenants.first().map(|t| t.id))
+    // Use active_tenant_id from JWT claims (admin's selected tenant)
+    let tid =
+        active_tenant_id.ok_or_else(|| AppError::auth_invalid("No active tenant in session"))?;
+    Ok(Some(TenantId::from(tid)))
 }
 
 /// Verify an admin user belongs to the target tenant.
@@ -655,8 +630,7 @@ impl WebAdminRoutes {
             })?;
 
         // Assign approved user to admin's tenant for multi-tenant isolation
-        assign_user_to_admin_tenant(&resources, auth.user_id, auth.active_tenant_id, user_uuid)
-            .await?;
+        assign_user_to_admin_tenant(&resources, auth.active_tenant_id, user_uuid).await?;
 
         // Auto-create a default MCP token for the newly approved user
         create_default_mcp_token_for_user(resources.database.as_ref(), user_uuid).await;

@@ -10,7 +10,10 @@
 mod common;
 mod helpers;
 
-use common::{create_test_server_resources, create_test_user, create_test_user_with_email};
+use common::{
+    create_test_server_resources, create_test_user, create_test_user_with_email,
+    generate_test_token,
+};
 use helpers::axum_test::AxumTestRequest;
 use pierre_mcp_server::database::coaches::{
     CoachCategory, CoachVisibility, CoachesManager, CreateSystemCoachRequest,
@@ -33,10 +36,7 @@ async fn setup_test_environment() -> (axum::Router, String) {
     let (_user_id, user) = create_test_user(&resources.database).await.unwrap();
 
     // Generate a JWT token for the user
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
 
     // Create the coaches router
     let router = CoachesRoutes::routes(resources);
@@ -633,10 +633,7 @@ async fn test_system_coaches_visible_in_list() {
     assert!(system_coach.is_system);
 
     // Generate a JWT token for the user
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
 
     // Create the coaches router
@@ -698,10 +695,7 @@ async fn test_get_system_coach_by_id() {
         .unwrap();
 
     // Generate JWT token
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
 
     let router = CoachesRoutes::routes(resources);
@@ -756,10 +750,7 @@ async fn test_hide_system_coach_via_api() {
         .unwrap();
 
     // Generate JWT token
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
 
     let router = CoachesRoutes::routes(resources);
@@ -827,10 +818,7 @@ async fn test_show_hidden_coach_via_api() {
         .unwrap();
 
     // Generate JWT token
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
 
     let router = CoachesRoutes::routes(resources);
@@ -898,10 +886,7 @@ async fn test_list_with_include_hidden() {
         .unwrap();
 
     // Generate JWT token
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
 
     let router = CoachesRoutes::routes(resources);
@@ -976,10 +961,7 @@ async fn test_generate_coach_empty_conversation() {
     let resources = create_test_server_resources().await.unwrap();
     let (_user_id, user) = create_test_user(&resources.database).await.unwrap();
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
 
     // Create a conversation first via chat routes
@@ -1027,10 +1009,7 @@ async fn test_generate_coach_other_users_conversation() {
 
     // Create first user and their conversation
     let (_user1_id, user1) = create_test_user(&resources.database).await.unwrap();
-    let token1 = resources
-        .auth_manager
-        .generate_token(&user1, &resources.jwks_manager)
-        .unwrap();
+    let token1 = generate_test_token(&resources, &user1).await;
     let auth_token1 = format!("Bearer {token1}");
 
     // Create a conversation for user1
@@ -1053,10 +1032,7 @@ async fn test_generate_coach_other_users_conversation() {
     let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
         .await
         .unwrap();
-    let token2 = resources
-        .auth_manager
-        .generate_token(&user2, &resources.jwks_manager)
-        .unwrap();
+    let token2 = generate_test_token(&resources, &user2).await;
     let auth_token2 = format!("Bearer {token2}");
 
     // Try to generate coach from user1's conversation as user2

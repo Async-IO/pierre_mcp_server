@@ -10,7 +10,10 @@
 mod common;
 mod helpers;
 
-use common::{create_test_server_resources, create_test_user, create_test_user_with_email};
+use common::{
+    create_test_server_resources, create_test_user, create_test_user_with_email,
+    generate_test_token,
+};
 use helpers::axum_test::AxumTestRequest;
 use pierre_mcp_server::database::coaches::{
     CoachCategory, CoachVisibility, CoachesManager, CreateSystemCoachRequest, PublishStatus,
@@ -37,10 +40,7 @@ async fn setup_test_environment() -> (axum::Router, String) {
     let (_user_id, user) = create_test_user(&resources.database).await.unwrap();
 
     // Generate a JWT token for the user
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
 
     // Create the store router
     let router = StoreRoutes::router(&resources);
@@ -143,10 +143,7 @@ async fn test_browse_store_with_published_coaches() {
     )
     .await;
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -194,10 +191,7 @@ async fn test_browse_store_with_category_filter() {
     )
     .await;
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -243,10 +237,7 @@ async fn test_browse_store_with_cursor_pagination() {
         sleep(Duration::from_millis(10)).await;
     }
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -335,10 +326,7 @@ async fn test_cursor_pagination_with_popular_sort() {
         }
     }
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -406,10 +394,7 @@ async fn test_cursor_pagination_with_title_sort() {
         .await;
     }
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -471,10 +456,7 @@ async fn test_cursor_invalid_for_different_sort_order() {
         .await;
     }
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -542,10 +524,7 @@ async fn test_browse_store_sort_by_popular() {
         .await
         .unwrap();
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -597,10 +576,7 @@ async fn test_get_coach_detail() {
     )
     .await;
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -677,10 +653,7 @@ async fn test_search_coaches() {
     )
     .await;
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -767,10 +740,7 @@ async fn test_list_categories() {
     )
     .await;
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -847,10 +817,7 @@ async fn test_install_coach() {
     let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
         .await
         .unwrap();
-    let token = resources
-        .auth_manager
-        .generate_token(&user2, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user2).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -893,10 +860,7 @@ async fn test_install_coach_already_installed() {
     let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
         .await
         .unwrap();
-    let token = resources
-        .auth_manager
-        .generate_token(&user2, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user2).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -956,10 +920,7 @@ async fn test_install_increments_install_count() {
     let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
         .await
         .unwrap();
-    let token = resources
-        .auth_manager
-        .generate_token(&user2, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user2).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -1009,10 +970,7 @@ async fn test_uninstall_coach() {
     let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
         .await
         .unwrap();
-    let token = resources
-        .auth_manager
-        .generate_token(&user2, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user2).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -1070,10 +1028,7 @@ async fn test_uninstall_coach_not_from_store() {
         .await
         .unwrap();
 
-    let token = resources
-        .auth_manager
-        .generate_token(&user, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -1162,10 +1117,7 @@ async fn test_list_installations() {
     let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
         .await
         .unwrap();
-    let token = resources
-        .auth_manager
-        .generate_token(&user2, &resources.jwks_manager)
-        .unwrap();
+    let token = generate_test_token(&resources, &user2).await;
     let auth_token = format!("Bearer {token}");
     let router = StoreRoutes::router(&resources);
 
@@ -1225,10 +1177,7 @@ async fn test_published_coaches_visible_cross_tenant() {
     let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
         .await
         .unwrap();
-    let token2 = resources
-        .auth_manager
-        .generate_token(&user2, &resources.jwks_manager)
-        .unwrap();
+    let token2 = generate_test_token(&resources, &user2).await;
     let auth_token2 = format!("Bearer {token2}");
     let router = StoreRoutes::router(&resources);
 
@@ -1274,10 +1223,7 @@ async fn test_installations_isolated_per_user() {
     let (_user2_id, user2) = create_test_user_with_email(&resources.database, "user2@example.com")
         .await
         .unwrap();
-    let token2 = resources
-        .auth_manager
-        .generate_token(&user2, &resources.jwks_manager)
-        .unwrap();
+    let token2 = generate_test_token(&resources, &user2).await;
     let auth_token2 = format!("Bearer {token2}");
     let router = StoreRoutes::router(&resources);
 
@@ -1290,10 +1236,7 @@ async fn test_installations_isolated_per_user() {
     let (_user3_id, user3) = create_test_user_with_email(&resources.database, "user3@example.com")
         .await
         .unwrap();
-    let token3 = resources
-        .auth_manager
-        .generate_token(&user3, &resources.jwks_manager)
-        .unwrap();
+    let token3 = generate_test_token(&resources, &user3).await;
     let auth_token3 = format!("Bearer {token3}");
 
     let response = AxumTestRequest::get("/api/store/installations")

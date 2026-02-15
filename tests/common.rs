@@ -280,6 +280,24 @@ pub async fn create_test_user_with_email(database: &Database, email: &str) -> Re
     Ok((user_id, user))
 }
 
+/// Generate a JWT token for a test user that includes their `active_tenant_id`.
+///
+/// Route handlers require `active_tenant_id` in the JWT claims to resolve the
+/// user's tenant. This helper looks up the user's tenant from the database and
+/// includes it in the generated token.
+pub async fn generate_test_token(resources: &Arc<ServerResources>, user: &User) -> String {
+    let tenants = resources
+        .database
+        .list_tenants_for_user(user.id)
+        .await
+        .unwrap();
+    let tenant_id = tenants.first().map(|t| t.id.to_string());
+    resources
+        .auth_manager
+        .generate_token_with_tenant(user, &resources.jwks_manager, tenant_id)
+        .unwrap()
+}
+
 /// Create a test API key for a user (returns API key string)
 pub fn create_test_api_key(_database: &Database, user_id: Uuid, name: &str) -> Result<String> {
     let request = CreateApiKeyRequest {
