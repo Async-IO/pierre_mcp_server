@@ -120,12 +120,17 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-AdminPassword123}"
 
 # Step 1: Stop all services
 print_step 1 "Stopping existing services..."
-pkill -f "pierre-mcp-server" 2>/dev/null || true
-pkill -f "vite.*frontend" 2>/dev/null || true
-pkill -f "expo.*8082" 2>/dev/null || true
-pkill -f "@expo/metro" 2>/dev/null || true
-pkill -f "cloudflared tunnel" 2>/dev/null || true
-sleep 2
+"$SCRIPT_DIR/stop-all.sh" 2>/dev/null || {
+    # Fallback if stop-all.sh doesn't exist yet
+    pkill -f "pierre-mcp-server" 2>/dev/null || true
+    pkill -f "node_modules/.bin/vite" 2>/dev/null || true
+    pkill -f "node_modules/@esbuild" 2>/dev/null || true
+    pkill -f "expo start" 2>/dev/null || true
+    pkill -f "jest-worker/build/workers/processChild" 2>/dev/null || true
+    pkill -f "nativewind.*child" 2>/dev/null || true
+    pkill -f "cloudflared tunnel" 2>/dev/null || true
+    sleep 2
+}
 echo "    Done"
 
 # Step 2: Reset database
@@ -408,7 +413,7 @@ echo "  All logs:       tail -f $LOG_DIR/*.log"
 echo ""
 echo -e "${CYAN}=== Quick Commands ===${NC}"
 echo ""
-echo "  Stop all:       pkill -f pierre-mcp-server; pkill -f vite; pkill -f expo"
+echo "  Stop all:       ./bin/stop-all.sh"
 echo "  Server only:    ./bin/start-server.sh"
 echo "  Reset & start:  ./bin/setup-db-with-seeds-and-oauth-and-start-servers.sh"
 echo ""
