@@ -212,11 +212,20 @@ impl AuthService {
             .await
             .map_err(|e| AppError::database(format!("Failed to update last active: {e}")))?;
 
-        // Generate JWT token using RS256
+        // Look up user's default tenant to include in JWT as active_tenant_id
+        let tenants = self
+            .data
+            .database()
+            .list_tenants_for_user(user.id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+        let active_tenant_id = tenants.first().map(|t| t.id.to_string());
+
+        // Generate JWT token using RS256 with active_tenant_id
         let jwt_token = self
             .auth
             .auth_manager()
-            .generate_token(&user, self.auth.jwks_manager())
+            .generate_token_with_tenant(&user, self.auth.jwks_manager(), active_tenant_id)
             .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS); // Default 24h expiry
@@ -448,10 +457,19 @@ impl AuthService {
         user: &User,
         provider: &str,
     ) -> AppResult<LoginResponse> {
+        // Look up user's default tenant to include in JWT as active_tenant_id
+        let tenants = self
+            .data
+            .database()
+            .list_tenants_for_user(user.id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+        let active_tenant_id = tenants.first().map(|t| t.id.to_string());
+
         let jwt_token = self
             .auth
             .auth_manager()
-            .generate_token(user, self.auth.jwks_manager())
+            .generate_token_with_tenant(user, self.auth.jwks_manager(), active_tenant_id)
             .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
 
         let expires_at = Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
@@ -506,11 +524,20 @@ impl AuthService {
             .map_err(|e| AppError::database(format!("Failed to get user: {e}")))?
             .ok_or_else(|| AppError::not_found("User"))?;
 
-        // Generate new JWT token using RS256
+        // Look up user's default tenant to include in refreshed JWT
+        let tenants = self
+            .data
+            .database()
+            .list_tenants_for_user(user.id)
+            .await
+            .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+        let active_tenant_id = tenants.first().map(|t| t.id.to_string());
+
+        // Generate new JWT token using RS256 with active_tenant_id
         let new_jwt_token = self
             .auth
             .auth_manager()
-            .generate_token(&user, self.auth.jwks_manager())
+            .generate_token_with_tenant(&user, self.auth.jwks_manager(), active_tenant_id)
             .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
         let expires_at =
             chrono::Utc::now() + chrono::Duration::hours(limits::DEFAULT_SESSION_HOURS);
@@ -1809,12 +1836,28 @@ impl AuthRoutes {
             .map_err(|e| AppError::database(format!("Failed to fetch user: {e}")))?
             .ok_or_else(|| AppError::not_found(format!("User {user_id}")))?;
 
-        // Generate a fresh JWT token for WebSocket authentication
+        // Preserve active_tenant_id from existing JWT, or look up user's default tenant
+        let active_tenant_id = if let Some(tid) = auth_result.active_tenant_id {
+            Some(tid.to_string())
+        } else {
+            let tenants = resources
+                .database
+                .list_tenants_for_user(user_id)
+                .await
+                .map_err(|e| AppError::database(format!("Failed to get user tenants: {e}")))?;
+            tenants.first().map(|t| t.id.to_string())
+        };
+
+        // Generate a fresh JWT token for WebSocket authentication with active_tenant_id
         let server_context = ServerContext::from(resources.as_ref());
         let jwt_token = server_context
             .auth()
             .auth_manager()
-            .generate_token(&user, server_context.auth().jwks_manager())
+            .generate_token_with_tenant(
+                &user,
+                server_context.auth().jwks_manager(),
+                active_tenant_id,
+            )
             .map_err(|e| AppError::auth_invalid(format!("Failed to generate token: {e}")))?;
 
         // Generate fresh CSRF token
